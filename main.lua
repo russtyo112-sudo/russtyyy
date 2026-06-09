@@ -73,14 +73,17 @@ function initESP(player)
     local char = player.Character
     if not char then return end
 
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
     if espObjects[player] then
         for _, obj in ipairs(espObjects[player]) do
             if typeof(obj) == "Instance" then
-                obj:Destroy()
+                pcall(function() obj:Destroy() end)
             end
         end
         if espObjects[player].billboard then
-            espObjects[player].billboard:Destroy()
+            pcall(function() espObjects[player].billboard:Destroy() end)
         end
         espObjects[player] = nil
     end
@@ -88,7 +91,7 @@ function initESP(player)
     espObjects[player] = {}
 
     local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Adornee = char:WaitForChild("HumanoidRootPart")
+    billboardGui.Adornee = root
     billboardGui.Parent = char
     billboardGui.AlwaysOnTop = true
     billboardGui.Size = UDim2.new(0, 100, 0, 20)
@@ -166,14 +169,53 @@ end)
 -- Character added
 game.Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function(char)
-        initESP(player)
+        task.wait(0.5) -- wait for character parts to load
+        task.spawn(initESP, player)
     end)
 end)
 
 -- Input handling
-game:GetService("UserInputService").InputBegan:Connect(function(input)
+local UIS = game:GetService("UserInputService")
+local espActive = false
+
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.RightShift then
         mainPanel.Visible = not mainPanel.Visible
+    end
+    if input.KeyCode == Enum.KeyCode.V then
+        espActive = true
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= game.Players.LocalPlayer and plr.Character then
+                task.spawn(initESP, plr)
+            end
+        end
+        if not espUpdate then
+            espUpdate = game:GetService("RunService").Heartbeat:Connect(updateESP)
+        end
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.V then
+        espActive = false
+        if espUpdate then
+            espUpdate:Disconnect()
+            espUpdate = nil
+        end
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if espObjects[plr] then
+                for _, obj in ipairs(espObjects[plr]) do
+                    if typeof(obj) == "Instance" then
+                        pcall(function() obj:Destroy() end)
+                    end
+                end
+                if espObjects[plr].billboard then
+                    pcall(function() espObjects[plr].billboard:Destroy() end)
+                end
+                espObjects[plr] = nil
+            end
+        end
     end
 end)
 
@@ -224,13 +266,9 @@ function setupAimbot()
                 local targetPos = part.Position
                 local targetScreenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(targetPos)
                 if onScreen then
-                    local screenPos = Vector2.new(targetScreenPos.X, targetScreenPos.Y)
-                    local distance = (screenPos - screenCenter).Magnitude
-                    if distance <= fovRadius then
-                        local targetCFrame = CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, targetPos)
+                    local targetCFrame = CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, targetPos)
                         workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
                         workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(targetCFrame, smoothness)
-                    end
                 end
             end
         end
@@ -269,7 +307,7 @@ function setupGUI()
             for _, plr in ipairs(game.Players:GetPlayers()) do
                 if plr ~= game.Players.LocalPlayer then
                     if plr.Character then
-                        initESP(plr)
+                        task.spawn(initESP, plr)
                     end
                 end
             end
@@ -430,11 +468,9 @@ setupGUI()
 
 for _, plr in ipairs(game.Players:GetPlayers()) do
     if plr ~= game.Players.LocalPlayer then
-        if plr.Character then
-            initESP(plr)
-        end
         plr.CharacterAdded:Connect(function()
-            initESP(plr)
+            task.wait(0.5)
+            task.spawn(initESP, plr)
         end)
     end
 end
