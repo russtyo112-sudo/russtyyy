@@ -1,6 +1,4 @@
--- Xeno Executor Script for Roblox
--- Created by DeepHat
-
+-- Fixed Xeno Executor Script
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local camera = workspace.CurrentCamera
@@ -17,16 +15,6 @@ uiContainer.Size = UDim2.new(1, 0, 1, 0)
 uiContainer.Visible = false
 uiContainer.Parent = gui
 
--- Create main panel
-local panel = Instance.new("Frame")
-panel.Name = "MainPanel"
-panel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-panel.BorderSizePixel = 2
-panel.BorderColor3 = Color3.fromRGB(80, 80, 80)
-panel.Position = UDim2.new(0.5, -200, 0.5, -150)
-panel.Size = UDim2.new(0, 400, 0, 300)
-panel.Parent = uiContainer
-
 -- UI Elements
 local title = Instance.new("TextLabel")
 title.Text = "Xeno Executor | ESP & Aimbot"
@@ -35,20 +23,7 @@ title.TextSize = 18
 title.BackgroundTransparency = 1
 title.Size = UDim2.new(1, 0, 0, 30)
 title.Position = UDim2.new(0, 0, 0, 0)
-title.Parent = panel
-
-local closeButton = Instance.new("TextButton")
-closeButton.Text = "Close [ESC]"
-closeButton.Font = Enum.Font.SourceSansBold
-closeButton.TextSize = 14
-closeButton.BackgroundTransparency = 0
-closeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-closeButton.Size = UDim2.new(0, 80, 0, 30)
-closeButton.Position = UDim2.new(1, -90, 0, 0)
-closeButton.MouseButton1Click:Connect(function()
-    uiContainer.Visible = false
-end)
-closeButton.Parent = panel
+title.Parent = uiContainer
 
 -- Aimbot settings
 local aimbotSection = Instance.new("Frame")
@@ -57,16 +32,7 @@ aimbotSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 aimbotSection.BorderSizePixel = 0
 aimbotSection.Position = UDim2.new(0, 0, 0, 30)
 aimbotSection.Size = UDim2.new(1, 0, 0, 100)
-aimbotSection.Parent = panel
-
-local aimbotLabel = Instance.new("TextLabel")
-aimbotLabel.Text = "Aimbot Settings"
-aimbotLabel.Font = Enum.Font.SourceSansBold
-aimbotLabel.TextSize = 14
-aimbotLabel.BackgroundTransparency = 1
-aimbotLabel.Size = UDim2.new(1, 0, 0, 20)
-aimbotLabel.Position = UDim2.new(0, 0, 0, 0)
-aimbotLabel.Parent = aimbotSection
+aimbotSection.Parent = uiContainer
 
 -- Aimbot toggle
 local aimbotToggle = Instance.new("TextButton")
@@ -119,16 +85,7 @@ espSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 espSection.BorderSizePixel = 0
 espSection.Position = UDim2.new(0, 0, 0, 130)
 espSection.Size = UDim2.new(1, 0, 0, 120)
-espSection.Parent = panel
-
-local espLabel = Instance.new("TextLabel")
-espLabel.Text = "ESP Settings"
-espLabel.Font = Enum.Font.SourceSansBold
-espLabel.TextSize = 14
-espLabel.BackgroundTransparency = 1
-espLabel.Size = UDim2.new(1, 0, 0, 20)
-espLabel.Position = UDim2.new(0, 0, 0, 0)
-espLabel.Parent = espSection
+espSection.Parent = uiContainer
 
 -- ESP toggle
 local espToggle = Instance.new("TextButton")
@@ -151,66 +108,35 @@ espToggle.MouseButton1Click:Connect(function()
 end)
 espToggle.Parent = espSection
 
--- ESP settings
-local boxColorPicker = Instance.new("ColorPicker")
-boxColorPicker.Name = "BoxColorPicker"
-boxColorPicker.Color = Color3.fromRGB(255, 0, 0)
-boxColorPicker.Size = UDim2.new(0, 100, 0, 20)
-boxColorPicker.Position = UDim2.new(0.5, -50, 0, 60)
-boxColorPicker.Parent = espSection
-
-local boxColorLabel = Instance.new("TextLabel")
-boxColorLabel.Text = "Box Color:"
-boxColorLabel.Font = Enum.Font.SourceSans
-boxColorLabel.TextSize = 12
-boxColorLabel.BackgroundTransparency = 1
-boxColorLabel.Size = UDim2.new(0, 80, 0, 20)
-boxColorLabel.Position = UDim2.new(0, 20, 0, 60)
-boxColorLabel.Parent = espSection
-
 -- Global variables
 local aimbotEnabled = false
 local espEnabled = true
 local sensitivity = 0.5
 
--- Create overlay for ESP
-local overlay = Instance.new("Frame")
-overlay.Name = "Overlay"
-overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overlay.BorderSizePixel = 0
-overlay.Position = UDim2.new(0, 0, 0, 0)
-overlay.Size = UDim2.new(1, 0, 1, 0)
-overlay.Visible = false
-overlay.Parent = gui
-
 -- Keybind handler
-player.CharacterAdded:Connect(function(char)
-    -- Create keybind system
-    local keys = {}
-    mouse.KeyDown:Connect(function(key)
+local function handleKeybinds()
+    game:GetService("UserInputService").KeyDown:Connect(function(key)
         if key == "RightShift" then
-            uiContainer.Visible = true
+            uiContainer.Visible = not uiContainer.Visible
         elseif key == "V" then
             aimbotEnabled = not aimbotEnabled
-            if aimbotEnabled then
-                aimbotToggle.Text = "Aimbot Off"
-            else
-                aimbotToggle.Text = "Aimbot On"
-            end
+            aimbotToggle.Text = aimbotEnabled and "Aimbot Off" or "Aimbot On"
         elseif key == "Escape" then
             uiContainer.Visible = false
         end
     end)
-    
-    -- Aimbot functionality
+end
+
+-- Aimbot functionality
+local function aimbot()
     game:GetService("RunService").RenderStepped:Connect(function()
         if aimbotEnabled then
             local closestPlayer = nil
             local closestDistance = math.huge
             
-            for _, plr in pairs(player:GetChildren()) do
-                if plr:IsA("Humanoid") and plr.Health > 0 then
-                    local distance = (plr.RootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+            for _, plr in pairs(game.Players:GetPlayers()) do
+                if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                    local distance = (plr.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
                     
                     if distance < closestDistance then
                         closestDistance = distance
@@ -220,77 +146,48 @@ player.CharacterAdded:Connect(function(char)
             end
             
             if closestPlayer then
-                local screenPoint, onScreen = camera:WorldToViewportPoint(closestPlayer.RootPart.Position)
-                
-                if onScreen then
-                    mouse.TargetFilter = closestPlayer
-                    mouse.Hit = Vector3.new(screenPoint.X, screenPoint.Y, 0)
-                    
-                    -- Apply sensitivity to aiming
-                    local currentMousePos = Vector3.new(mouse.Hit.X, mouse.Hit.Y, 0)
-                    local targetPos = Vector3.new(screenPoint.X, screenPoint.Y, 0)
-                    
-                    local delta = (targetPos - currentMousePos) * sensitivity
-                    mouse.Hit = currentMousePos + delta
+                local target = closestPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if target then
+                    -- Move camera toward target
+                    local direction = (target.Position - camera.CFrame.Position).unit
+                    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, target.Position)
                 end
             end
         end
     end)
+end
+
+-- ESP functionality
+local function esp()
+    local overlay = Instance.new("Frame")
+    overlay.Name = "Overlay"
+    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BorderSizePixel = 0
+    overlay.Position = UDim2.new(0, 0, 0, 0)
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.Visible = false
+    overlay.Parent = gui
     
-    -- ESP functionality
     game:GetService("RunService").RenderStepped:Connect(function()
         if espEnabled then
             overlay.Visible = true
             
-            for _, plr in pairs(player:GetChildren()) do
-                if plr:IsA("Humanoid") and plr.Health > 0 then
-                    local screenPoint, onScreen = camera:WorldToViewportPoint(plr.RootPart.Position)
+            for _, plr in pairs(game.Players:GetPlayers()) do
+                if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                    local screenPoint, onScreen = camera:WorldToViewportPoint(plr.Character.HumanoidRootPart.Position)
                     
                     if onScreen then
-                        -- Draw box around player
+                        -- Draw box
                         local box = Instance.new("Frame")
-                        box.BackgroundColor3 = boxColorPicker.Color
+                        box.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
                         box.BorderSizePixel = 1
                         box.BorderColor3 = Color3.fromRGB(255, 255, 255)
                         box.Position = UDim2.new(0, screenPoint.X - 25, 0, screenPoint.Y - 50)
                         box.Size = UDim2.new(0, 50, 0, 100)
                         box.Parent = overlay
                         
-                        -- Draw skeleton lines
-                        local head = plr.Head
-                        local torso = plr.Torso
-                        local leftArm = plr["Left Arm"]
-                        local rightArm = plr["Right Arm"]
-                        local leftLeg = plr["Left Leg"]
-                        local rightLeg = plr["Right Leg"]
-                        
-                        if head and torso then
-                            local headScreen, _ = camera:WorldToViewportPoint(head.Position)
-                            local torsoScreen, _ = camera:WorldToViewportPoint(torso.Position)
-                            
-                            local line = Instance.new("Frame")
-                            line.BackgroundColor3 = boxColorPicker.Color
-                            line.BorderSizePixel = 0
-                            line.Size = UDim2.new(0, 2, 0, 10)
-                            line.Position = UDim2.new(0, headScreen.X - 1, 0, headScreen.Y)
-                            line.Parent = overlay
-                        end
-                        
-                        -- Draw health bar
-                        local healthBar = Instance.new("Frame")
-                        healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                        healthBar.BorderSizePixel = 0
-                        healthBar.Size = UDim2.new(0, 50, 0, 10)
-                        healthBar.Position = UDim2.new(0, screenPoint.X - 25, 0, screenPoint.Y - 60)
-                        healthBar.Parent = overlay
-                        
-                        -- Health percentage
-                        local healthPercentage = plr.Health / plr.MaxHealth
-                        healthBar.Size = UDim2.new(0, 50 * healthPercentage, 0, 10)
-                        
-                        -- Clean up old elements
+                        -- Add to cleanup
                         game:GetService("Debris"):AddItem(box, 0.1)
-                        game:GetService("Debris"):AddItem(healthBar, 0.1)
                     end
                 end
             end
@@ -298,7 +195,10 @@ player.CharacterAdded:Connect(function(char)
             overlay.Visible = false
         end
     end)
-end)
+end
 
 -- Initialize UI
+handleKeybinds()
+aimbot()
+esp()
 uiContainer.Visible = false
