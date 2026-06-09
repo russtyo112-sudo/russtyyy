@@ -1,419 +1,408 @@
--- Xeno Executor Script for Roblox
--- Created by DeepHat
-
--- Setup variables
-local player = game.Players.LocalPlayer
-local userInputService = game:GetService("UserInputService")
-local runService = game:GetService("RunService")
+-- Constants and setup
 local gui = Instance.new("ScreenGui")
-gui.Parent = player:WaitForChild("PlayerGui")
-gui.ResetOnSpawn = false -- Prevent automatic cleanup
+gui.Name = "XenoExecutor"
+gui.ResetOnSpawn = false
 
--- Create overlay for ESP
-local overlay = Instance.new("Frame")
-overlay.Name = "Overlay"
-overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overlay.BackgroundTransparency = 1
-overlay.BorderSizePixel = 0
-overlay.Position = UDim2.new(0, 0, 0, 0)
-overlay.Size = UDim2.new(1, 0, 1, 0)
-overlay.Visible = false
-overlay.Parent = gui
+-- Parent to PlayerGui
+local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+gui.Parent = playerGui
 
--- State variables
-local aimbotEnabled = false
-local espEnabled = true
-local sensitivity = 0.5
-local boxColor = Color3.fromRGB(255, 0, 0)
-local trackedElements = {} -- Pool of UI elements
-local trackedPlayers = {} -- Map of players to their tracked elements
-local lastFramePlayers = {} -- Track players from last frame to avoid rebuilding
+-- Main panel
+local mainPanel = Instance.new("Frame", gui)
+mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+mainPanel.Size = UDim2.new(0, 300, 0, 300)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -150)
+mainPanel.Draggable = true
+mainPanel.Active = true
 
--- Wait for camera with timeout
-local camera = workspace.CurrentCamera
-local attempt = 0
-while not camera and attempt < 100 do
-    game:GetService("RunService").Heartbeat:Wait()
-    camera = workspace.CurrentCamera
-    attempt = attempt + 1
-end
+-- Title bar
+local titleBar = Instance.new("Frame", mainPanel)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleBar.Size = UDim2.new(1, 0, 0, 30)
 
-if not camera then
-    warn("No camera found after waiting, exiting")
-    return
-end
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Text = "Xeno Executor"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
 
--- Create UI
-local uiContainer = Instance.new("Frame")
-uiContainer.Name = "XenoUI"
-uiContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-uiContainer.BorderSizePixel = 0
-uiContainer.Position = UDim2.new(0, 0, 0, 0)
-uiContainer.Size = UDim2.new(1, 0, 1, 0)
-uiContainer.Visible = false
-uiContainer.Parent = gui
-
--- Create main panel
-local panel = Instance.new("Frame")
-panel.Name = "MainPanel"
-panel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-panel.BorderSizePixel = 2
-panel.BorderColor3 = Color3.fromRGB(80, 80, 80)
-panel.Position = UDim2.new(0.5, -200, 0.5, -150)
-panel.Size = UDim2.new(0, 400, 0, 300)
-panel.Parent = uiContainer
-
--- UI Elements
-local title = Instance.new("TextLabel")
-title.Text = "Xeno Executor | ESP & Aimbot"
-title.Font = Enum.Font.SourceSansBold
-title.TextSize = 18
-title.BackgroundTransparency = 1
-title.Size = UDim2.new(1, 0, 0, 30)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.Parent = panel
-
--- Close button
-local closeButton = Instance.new("TextButton")
-closeButton.Text = "Close [ESC]"
-closeButton.Font = Enum.Font.SourceSansBold
-closeButton.TextSize = 14
-closeButton.BackgroundTransparency = 0
-closeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-closeButton.Size = UDim2.new(0, 80, 0, 30)
-closeButton.Position = UDim2.new(1, -90, 0, 0)
-closeButton.MouseButton1Click:Connect(function()
-    uiContainer.Visible = false
+-- Toggle button
+local toggleBtn = Instance.new("TextButton", mainPanel)
+toggleBtn.Text = "Toggle"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+toggleBtn.Size = UDim2.new(0, 50, 0, 30)
+toggleBtn.Position = UDim2.new(1, -60, 0, 5)
+toggleBtn.MouseButton1Click:Connect(function()
+    mainPanel.Visible = not mainPanel.Visible
 end)
-closeButton.Parent = panel
 
--- Aimbot section
-local aimbotSection = Instance.new("Frame")
-aimbotSection.Name = "AimbotSection"
-aimbotSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-aimbotSection.BorderSizePixel = 0
-aimbotSection.Position = UDim2.new(0, 0, 0, 30)
-aimbotSection.Size = UDim2.new(1, 0, 0, 100)
-aimbotSection.Parent = panel
-
-local aimbotLabel = Instance.new("TextLabel")
-aimbotLabel.Text = "Aimbot Settings"
-aimbotLabel.Font = Enum.Font.SourceSansBold
-aimbotLabel.TextSize = 14
-aimbotLabel.BackgroundTransparency = 1
-aimbotLabel.Size = UDim2.new(1, 0, 0, 20)
-aimbotLabel.Position = UDim2.new(0, 0, 0, 0)
-aimbotLabel.Parent = aimbotSection
-
-local aimbotToggle = Instance.new("TextButton")
-aimbotToggle.Text = "Aimbot Off"
-aimbotToggle.Font = Enum.Font.SourceSansBold
-aimbotToggle.TextSize = 12
-aimbotToggle.BackgroundTransparency = 0
-aimbotToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-aimbotToggle.Size = UDim2.new(0, 80, 0, 20)
-aimbotToggle.Position = UDim2.new(0.5, -40, 0, 30)
-aimbotToggle.MouseButton1Click:Connect(function()
-    aimbotEnabled = not aimbotEnabled
-    aimbotToggle.Text = aimbotEnabled and "Aimbot On" or "Aimbot Off"
-end)
-aimbotToggle.Parent = aimbotSection
-
--- Sensitivity controls
-local sensitivityLabel = Instance.new("TextLabel")
-sensitivityLabel.Text = "Sensitivity: 0.5"
-sensitivityLabel.Font = Enum.Font.SourceSans
-sensitivityLabel.TextSize = 12
-sensitivityLabel.BackgroundTransparency = 1
-sensitivityLabel.Size = UDim2.new(0, 100, 0, 20)
-sensitivityLabel.Position = UDim2.new(0, 50, 0, 60)
-sensitivityLabel.Parent = aimbotSection
-
--- ESP section
-local espSection = Instance.new("Frame")
-espSection.Name = "ESPSection"
+-- Sections
+local espSection = Instance.new("Frame", mainPanel)
+espSection.Name = "ESP"
 espSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-espSection.BorderSizePixel = 0
-espSection.Position = UDim2.new(0, 0, 0, 130)
-espSection.Size = UDim2.new(1, 0, 0, 120)
-espSection.Parent = panel
+espSection.Size = UDim2.new(1, 0, 0, 100)
+espSection.Position = UDim2.new(0, 0, 0, 35)
 
-local espLabel = Instance.new("TextLabel")
-espLabel.Text = "ESP Settings"
-espLabel.Font = Enum.Font.SourceSansBold
-espLabel.TextSize = 14
-espLabel.BackgroundTransparency = 1
-espLabel.Size = UDim2.new(1, 0, 0, 20)
-espLabel.Position = UDim2.new(0, 0, 0, 0)
-espLabel.Parent = espSection
+local aimbotSection = Instance.new("Frame", mainPanel)
+aimbotSection.Name = "AIMBOT"
+aimbotSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+aimbotSection.Size = UDim2.new(1, 0, 0, 100)
+aimbotSection.Position = UDim2.new(0, 0, 0, 140)
 
-local espToggle = Instance.new("TextButton")
-espToggle.Text = "ESP On"
-espToggle.Font = Enum.Font.SourceSansBold
-espToggle.TextSize = 12
-espToggle.BackgroundTransparency = 0
-espToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-espToggle.Size = UDim2.new(0, 80, 0, 20)
-espToggle.Position = UDim2.new(0.5, -40, 0, 30)
-espToggle.MouseButton1Click:Connect(function()
-    espEnabled = not espEnabled
-    espToggle.Text = espEnabled and "ESP On" or "ESP Off"
-    overlay.Visible = espEnabled
-end)
-espToggle.Parent = espSection
+-- ESP objects storage
+local espObjects = {}
 
--- Box color selector
-local boxColorLabel = Instance.new("TextLabel")
-boxColorLabel.Text = "Box Color:"
-boxColorLabel.Font = Enum.Font.SourceSans
-boxColorLabel.TextSize = 12
-boxColorLabel.BackgroundTransparency = 1
-boxColorLabel.Size = UDim2.new(0, 80, 0, 20)
-boxColorLabel.Position = UDim2.new(0, 20, 0, 60)
-boxColorLabel.Parent = espSection
+-- Aimbot state
+local aimbotEnabled = false
+local targetPlayer = nil
+local smoothness = 0.1
+local fovRadius = 100
+local targetPart = "Head"
+local teamCheck = true
 
-local boxColorDisplay = Instance.new("Frame")
-boxColorDisplay.BackgroundColor3 = boxColor
-boxColorDisplay.BorderSizePixel = 1
-boxColorDisplay.BorderColor3 = Color3.fromRGB(255, 255, 255)
-boxColorDisplay.Size = UDim2.new(0, 20, 0, 20)
-boxColorDisplay.Position = UDim2.new(0, 100, 0, 60)
-boxColorDisplay.Parent = espSection
+-- RenderStepped handlers
+local renderLoop = nil
+local espUpdate = nil
 
--- Keybind handler
-userInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end -- Ignore already processed inputs
-    
-    if input.KeyCode == Enum.KeyCode.RightShift then
-        uiContainer.Visible = not uiContainer.Visible
-    elseif input.KeyCode == Enum.KeyCode.V then
-        aimbotEnabled = not aimbotEnabled
-        aimbotToggle.Text = aimbotEnabled and "Aimbot On" or "Aimbot Off"
-    elseif input.KeyCode == Enum.KeyCode.Escape then
-        uiContainer.Visible = false
+-- Initialize ESP
+function initESP(player)
+    local char = player.Character
+    if not char then return end
+
+    if espObjects[player] then
+        for _, obj in ipairs(espObjects[player]) do
+            if typeof(obj) == "Instance" then
+                obj:Destroy()
+            end
+        end
+        if espObjects[player].billboard then
+            espObjects[player].billboard:Destroy()
+        end
+        espObjects[player] = nil
     end
-end)
 
--- Get valid players for aimbot/ESP
-local function getValidPlayers()
-    local players = {}
-    for _, plr in pairs(game.Players:GetPlayers()) do
-        if plr ~= player 
-            and plr.Character 
-            and plr.Character:FindFirstChild("Humanoid") 
-            and plr.Character.Humanoid.Health > 0 
-            and plr.Character:FindFirstChild("HumanoidRootPart") then
-            table.insert(players, plr)
+    espObjects[player] = {}
+
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Adornee = char:WaitForChild("HumanoidRootPart")
+    billboardGui.Parent = char
+    billboardGui.AlwaysOnTop = true
+    billboardGui.Size = UDim2.new(0, 100, 0, 20)
+    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+
+    local healthBar = Instance.new("Frame", billboardGui)
+    healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    healthBar.Size = UDim2.new(1, 0, 0, 10)
+    healthBar.Position = UDim2.new(0, 0, -0.1, 0)
+    healthBar.BorderSizePixel = 0
+
+    local parts = {"Head", "UpperTorso", "LowerTorso", "LeftUpperArm",
+                   "RightUpperArm", "LeftUpperLeg", "RightUpperLeg",
+                   "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+
+    for _, partName in ipairs(parts) do
+        local part = char:FindFirstChild(partName)
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if part and root then
+            local a0 = Instance.new("Attachment")
+            a0.Parent = root
+            local a1 = Instance.new("Attachment")
+            a1.Parent = part
+            local line = Instance.new("LineHandleAdornment")
+            line.Attachment0 = a0
+            line.Attachment1 = a1
+            line.Length = 0
+            line.Width = 2
+            line.Color3 = Color3.fromRGB(255, 0, 255)
+            line.Parent = workspace
+            table.insert(espObjects[player], line)
+            table.insert(espObjects[player], a0)
+            table.insert(espObjects[player], a1)
         end
     end
-    return players
+
+    espObjects[player].billboard = billboardGui
+    espObjects[player].healthBar = healthBar
 end
 
--- Get character parts (handles both R6 and R15)
-local function getCharacterParts(character)
-    local parts = {}
-    
-    -- Check for R15 (no Body folder)
-    local upperTorso = character:FindFirstChild("UpperTorso")
-    if upperTorso then
-        parts = {
-            Head = character:FindFirstChild("Head"),
-            Torso = upperTorso,
-            LeftArm = character:FindFirstChild("LeftUpperArm"),  -- R15 uses different limb names
-            RightArm = character:FindFirstChild("RightUpperArm"),
-            LeftLeg = character:FindFirstChild("LeftUpperLeg"),
-            RightLeg = character:FindFirstChild("RightUpperLeg")
-        }
-    else
-        -- Fall back to R6
-        parts = {
-            Head = character:FindFirstChild("Head"),
-            Torso = character:FindFirstChild("Torso"),
-            LeftArm = character:FindFirstChild("Left Arm"),
-            RightArm = character:FindFirstChild("Right Arm"),
-            LeftLeg = character:FindFirstChild("Left Leg"),
-            RightLeg = character:FindFirstChild("Right Leg")
-        }
-    end
-    
-    -- Validate all parts exist
-    for name, part in pairs(parts) do
-        if not part then
-            parts[name] = nil
-        end
-    end
-    
-    return parts
-end
-
--- Create a new UI element of type typeName
-local function createUIElement(typeName)
-    local newElem = Instance.new(typeName)
-    newElem.Visible = false
-    newElem.Parent = overlay
-    table.insert(trackedElements, newElem)
-    return newElem
-end
-
--- Get a UI element of type typeName from the pool
-local function getUIElement(typeName)
-    for _, elem in ipairs(trackedElements) do
-        if elem:IsA(typeName) and not elem.Visible then
-            elem.Visible = true
-            return elem
-        end
-    end
-    
-    -- Create new element if none available
-    return createUIElement(typeName)
-end
-
--- Cleanup elements for a player
-local function cleanupPlayerElements(plr)
-    if trackedPlayers[plr] then
-        for _, elem in ipairs(trackedPlayers[plr]) do
-            elem.Visible = false
-        end
-        trackedPlayers[plr] = nil
-    end
-end
-
--- Cleanup when player leaves
-game.Players.PlayerRemoving:Connect(function(plr)
-    cleanupPlayerElements(plr)
-end)
-
--- Update camera reference periodically
-workspace.ChildAdded:Connect(function(child)
-    if child.Name == "CurrentCamera" then
-        camera = child
-    end
-end)
-
--- Aimbot functionality
-runService.RenderStepped:Connect(function()
-    if aimbotEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local players = getValidPlayers()
-        local closestPlayer = nil
-        local closestDistance = math.huge
-        
-        for _, plr in ipairs(players) do
-            local rootPart = plr.Character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                local distance = (rootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
-                
-                if distance < closestDistance then
-                    closestDistance = distance
-                    closestPlayer = plr
+-- Update ESP
+function updateESP()
+    for _, player in ipairs(game.Players:GetPlayers()) do
+        if player ~= game.Players.LocalPlayer then
+            local char = player.Character
+            if char then
+                local rootPart = char:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    local humanoid = char:FindFirstChild("Humanoid")
+                    if humanoid and espObjects[player] and espObjects[player].healthBar then
+                        espObjects[player].healthBar.Size = UDim2.new(
+                            humanoid.Health / humanoid.MaxHealth, 0, 1, 0)
+                    end
                 end
             end
         end
-        
-        if closestPlayer then
-            local targetPart = closestPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if targetPart then
-                -- Set camera focus to target part
-                camera.Focus = CFrame.new(camera.CFrame.Position, targetPart.Position)
+    end
+end
+
+-- Player removal cleanup
+game.Players.PlayerRemoving:Connect(function(player)
+    if espObjects[player] then
+        for _, obj in ipairs(espObjects[player]) do
+            if typeof(obj) == "Instance" then
+                obj:Destroy()
             end
         end
+        if espObjects[player].billboard then
+            espObjects[player].billboard:Destroy()
+        end
+        espObjects[player] = nil
     end
 end)
 
--- ESP functionality with dynamic box sizing
-runService.RenderStepped:Connect(function()
-    if espEnabled then
-        overlay.Visible = true
-        
-        -- Only rebuild tracking for players that changed since last frame
-        local currentPlayers = {}
-        for _, plr in ipairs(getValidPlayers()) do
-            currentPlayers[plr] = true
-        end
-        
-        -- Remove elements for players no longer in view
-        for plr, _ in pairs(lastFramePlayers) do
-            if not currentPlayers[plr] then
-                cleanupPlayerElements(plr)
-            end
-        end
-        
-        -- Update elements for players in view
-        for _, plr in ipairs(getValidPlayers()) do
-            local character = plr.Character
-            if character then
-                local head = character:FindFirstChild("Head")
-                if head then
-                    local screenPoint, onScreen = camera:WorldToViewportPoint(head.Position)
-                    
-                    if onScreen then
-                        -- Track this player
-                        currentPlayers[plr] = true
-                        
-                        -- Calculate dynamic box size based on distance
-                        local distance = (head.Position - camera.CFrame.Position).Magnitude
-                        local baseSize = 100
-                        local scale = math.min(1, math.max(0.1, 1000 / distance))  -- Cap at 1000 units
-                        local width = baseSize * scale
-                        local height = baseSize * scale
-                        
-                        -- Get or create box element
-                        local box = getUIElement("Frame")
-                        box.BackgroundColor3 = boxColor
-                        box.BackgroundTransparency = 1  -- Transparent fill
-                        box.BorderSizePixel = 1
-                        box.BorderColor3 = Color3.fromRGB(255, 255, 255)
-                        box.Position = UDim2.new(0, screenPoint.X - width/2, 0, screenPoint.Y - height/2)
-                        box.Size = UDim2.new(0, width, 0, height)
-                        
-                        -- Track this element for this player
-                        if not trackedPlayers[plr] then
-                            trackedPlayers[plr] = {}
-                        end
-                        table.insert(trackedPlayers[plr], box)
-                        
-                        -- Draw skeleton lines
-                        local parts = getCharacterParts(character)
-                        if parts.Torso and parts.Head then
-                            local headScreen, _ = camera:WorldToViewportPoint(parts.Head.Position)
-                            local torsoScreen, _ = camera:WorldToViewportPoint(parts.Torso.Position)
-                            
-                            -- Create skeleton line between head and torso
-                            local line = getUIElement("Frame")
-                            line.BackgroundColor3 = boxColor
-                            line.BorderSizePixel = 0
-                            line.Size = UDim2.new(0, 2, 0, math.abs(torsoScreen.Y - headScreen.Y))
-                            line.Position = UDim2.new(0, headScreen.X - 1, 0, headScreen.Y)
-                            
-                            -- Track this element for this player
-                            table.insert(trackedPlayers[plr], line)
-                        end
-                        
-                        -- Draw health bar
-                        local healthBar = getUIElement("Frame")
-                        healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                        healthBar.BorderSizePixel = 0
-                        healthBar.Size = UDim2.new(0, width, 0, 10)
-                        healthBar.Position = UDim2.new(0, screenPoint.X - width/2, 0, screenPoint.Y - height/2 - 15)
-                        
-                        -- Track this element for this player
-                        table.insert(trackedPlayers[plr], healthBar)
-                        
-                        -- Health percentage (with safety check)
-                        local human = plr.Character:FindFirstChild("Humanoid")
-                        if human and human.MaxHealth > 0 then
-                            healthBar.Size = UDim2.new(0, width * (human.Health / human.MaxHealth), 0, 10)
+-- Character added
+game.Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        initESP(player)
+    end)
+end)
+
+-- Input handling
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        mainPanel.Visible = not mainPanel.Visible
+    end
+end)
+
+-- Setup aimbot loop
+function setupAimbot()
+    if aimbotEnabled then return end
+    aimbotEnabled = true
+
+    renderLoop = game:GetService("RunService").RenderStepped:Connect(function()
+        local screenCenter = Vector2.new(
+            workspace.CurrentCamera.ViewportSize.X / 2,
+            workspace.CurrentCamera.ViewportSize.Y / 2)
+        local minDistance = math.huge
+        targetPlayer = nil
+
+        for _, player in ipairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer then
+                local eligible = true
+                if teamCheck then
+                    if player.Team == game.Players.LocalPlayer.Team then
+                        eligible = false
+                    end
+                end
+                if eligible then
+                    local char = player.Character
+                    if char then
+                        local head = char:FindFirstChild("Head")
+                        if head then
+                            local headPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(head.Position)
+                            if onScreen then
+                                local screenPos = Vector2.new(headPos.X, headPos.Y)
+                                local dist = (screenPos - screenCenter).Magnitude
+                                if dist < minDistance then
+                                    minDistance = dist
+                                    targetPlayer = player
+                                end
+                            end
                         end
                     end
                 end
             end
         end
-        
-        -- Store current players for next frame
-        lastFramePlayers = currentPlayers
-    else
-        overlay.Visible = false
-    end
-end)
 
--- Initialize UI
-uiContainer.Visible = false
+        if targetPlayer and targetPlayer.Character then
+            local targetChar = targetPlayer.Character
+            local part = targetChar:FindFirstChild(targetPart)
+            if part then
+                local targetPos = part.Position
+                local targetScreenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(targetPos)
+                if onScreen then
+                    local screenPos = Vector2.new(targetScreenPos.X, targetScreenPos.Y)
+                    local distance = (screenPos - screenCenter).Magnitude
+                    if distance <= fovRadius then
+                        local targetCFrame = CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, targetPos)
+                        workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+                        workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(targetCFrame, smoothness)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Cleanup aimbot
+function cleanupAimbot()
+    if not aimbotEnabled then return end
+    aimbotEnabled = false
+    if renderLoop then
+        renderLoop:Disconnect()
+        renderLoop = nil
+    end
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+end
+
+-- Build GUI
+function setupGUI()
+    local toggleESP = Instance.new("TextButton", espSection)
+    toggleESP.Text = "Toggle ESP"
+    toggleESP.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleESP.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+    toggleESP.Size = UDim2.new(1, 0, 0, 30)
+    toggleESP.Position = UDim2.new(0, 0, 0, 0)
+    toggleESP.MouseButton1Click:Connect(function()
+        if espUpdate then
+            espUpdate:Disconnect()
+            espUpdate = nil
+        else
+            espUpdate = game:GetService("RunService").Heartbeat:Connect(updateESP)
+        end
+    end)
+
+    local smoothnessSlider = Instance.new("Frame", aimbotSection)
+    smoothnessSlider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    smoothnessSlider.Size = UDim2.new(1, 0, 0, 30)
+    smoothnessSlider.Position = UDim2.new(0, 0, 0, 0)
+
+    local smoothnessLabel = Instance.new("TextLabel", smoothnessSlider)
+    smoothnessLabel.Text = "Smoothness:"
+    smoothnessLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    smoothnessLabel.Size = UDim2.new(0, 80, 1, 0)
+    smoothnessLabel.BackgroundTransparency = 1
+
+    local smoothnessValue = Instance.new("TextLabel", smoothnessSlider)
+    smoothnessValue.Text = tostring(smoothness)
+    smoothnessValue.TextColor3 = Color3.fromRGB(255, 255, 255)
+    smoothnessValue.Size = UDim2.new(0, 40, 1, 0)
+    smoothnessValue.Position = UDim2.new(1, -45, 0, 0)
+    smoothnessValue.BackgroundTransparency = 1
+
+    local smoothnessHandle = Instance.new("TextButton", smoothnessSlider)
+    smoothnessHandle.Text = ""
+    smoothnessHandle.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+    smoothnessHandle.Size = UDim2.new(0, 20, 1, 0)
+    smoothnessHandle.Position = UDim2.new(0, 85, 0, 0)
+    smoothnessHandle.MouseButton1Down:Connect(function()
+        local mouse = game.Players.LocalPlayer:GetMouse()
+        local startPos = mouse.X
+        local startVal = smoothness
+        local connection
+        connection = mouse.Move:Connect(function()
+            local delta = (mouse.X - startPos) / 100
+            smoothness = math.clamp(startVal + delta, 0.01, 1.0)
+            smoothnessValue.Text = string.format("%.2f", smoothness)
+        end)
+        mouse.Button1Up:Connect(function()
+            connection:Disconnect()
+        end)
+    end)
+
+    local partSelector = Instance.new("Frame", aimbotSection)
+    partSelector.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    partSelector.Size = UDim2.new(1, 0, 0, 30)
+    partSelector.Position = UDim2.new(0, 0, 0, 35)
+
+    local partLabel = Instance.new("TextLabel", partSelector)
+    partLabel.Text = "Target Part:"
+    partLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    partLabel.Size = UDim2.new(0, 80, 1, 0)
+    partLabel.BackgroundTransparency = 1
+
+    local partDropdown = Instance.new("TextButton", partSelector)
+    partDropdown.Text = targetPart
+    partDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+    partDropdown.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+    partDropdown.Size = UDim2.new(0, 80, 1, 0)
+    partDropdown.Position = UDim2.new(1, -85, 0, 0)
+    partDropdown.MouseButton1Click:Connect(function()
+        local options = {"Head", "HumanoidRootPart"}
+        local dropdown = Instance.new("Frame")
+        dropdown.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        dropdown.Size = UDim2.new(0, 100, 0, #options * 25)
+        dropdown.Position = UDim2.new(0, 0, 0, 30)
+        dropdown.ZIndex = 10
+        for i, option in ipairs(options) do
+            local btn = Instance.new("TextButton")
+            btn.Text = option
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            btn.Size = UDim2.new(1, 0, 0, 25)
+            btn.Position = UDim2.new(0, 0, 0, (i - 1) * 25)
+            btn.ZIndex = 10
+            btn.MouseButton1Click:Connect(function()
+                targetPart = option
+                partDropdown.Text = option
+                dropdown:Destroy()
+            end)
+            btn.Parent = dropdown
+        end
+        dropdown.Parent = partSelector
+    end)
+
+    local teamCheckToggle = Instance.new("Frame", aimbotSection)
+    teamCheckToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    teamCheckToggle.Size = UDim2.new(1, 0, 0, 30)
+    teamCheckToggle.Position = UDim2.new(0, 0, 0, 70)
+
+    local teamCheckLabel = Instance.new("TextLabel", teamCheckToggle)
+    teamCheckLabel.Text = "Team Check:"
+    teamCheckLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    teamCheckLabel.Size = UDim2.new(0, 80, 1, 0)
+    teamCheckLabel.BackgroundTransparency = 1
+
+    local teamCheckValue = Instance.new("TextLabel", teamCheckToggle)
+    teamCheckValue.Text = tostring(teamCheck)
+    teamCheckValue.TextColor3 = Color3.fromRGB(255, 255, 255)
+    teamCheckValue.Size = UDim2.new(0, 40, 1, 0)
+    teamCheckValue.Position = UDim2.new(1, -45, 0, 0)
+    teamCheckValue.BackgroundTransparency = 1
+
+    local teamCheckHandle = Instance.new("TextButton", teamCheckToggle)
+    teamCheckHandle.Text = ""
+    teamCheckHandle.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+    teamCheckHandle.Size = UDim2.new(0, 20, 1, 0)
+    teamCheckHandle.Position = UDim2.new(0, 85, 0, 0)
+    teamCheckHandle.MouseButton1Click:Connect(function()
+        teamCheck = not teamCheck
+        teamCheckValue.Text = tostring(teamCheck)
+    end)
+
+    local startAimbot = Instance.new("TextButton", aimbotSection)
+    startAimbot.Text = "Start Aimbot"
+    startAimbot.TextColor3 = Color3.fromRGB(255, 255, 255)
+    startAimbot.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+    startAimbot.Size = UDim2.new(1, 0, 0, 30)
+    startAimbot.Position = UDim2.new(0, 0, 0, 105)
+    startAimbot.MouseButton1Click:Connect(function()
+        setupAimbot()
+    end)
+
+    local stopAimbot = Instance.new("TextButton", aimbotSection)
+    stopAimbot.Text = "Stop Aimbot"
+    stopAimbot.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stopAimbot.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+    stopAimbot.Size = UDim2.new(1, 0, 0, 30)
+    stopAimbot.Position = UDim2.new(0, 0, 0, 135)
+    stopAimbot.MouseButton1Click:Connect(function()
+        cleanupAimbot()
+    end)
+end
+
+-- Run
+setupGUI()
+
+for _, plr in ipairs(game.Players:GetPlayers()) do
+    if plr ~= game.Players.LocalPlayer then
+        if plr.Character then
+            initESP(plr)
+        end
+        plr.CharacterAdded:Connect(function()
+            initESP(plr)
+        end)
+    end
+end
+
+espUpdate = game:GetService("RunService").Heartbeat:Connect(updateESP)
