@@ -3,12 +3,45 @@
 
 -- Setup variables
 local player = game.Players.LocalPlayer
-local mouse = player:GetMouse()
-local camera = workspace.CurrentCamera
 local userInputService = game:GetService("UserInputService")
 local runService = game:GetService("RunService")
 local gui = Instance.new("ScreenGui")
 gui.Parent = player:WaitForChild("PlayerGui")
+gui.ResetOnSpawn = false -- Prevent automatic cleanup
+
+-- Create overlay for ESP
+local overlay = Instance.new("Frame")
+overlay.Name = "Overlay"
+overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+overlay.BackgroundTransparency = 1
+overlay.BorderSizePixel = 0
+overlay.Position = UDim2.new(0, 0, 0, 0)
+overlay.Size = UDim2.new(1, 0, 1, 0)
+overlay.Visible = false
+overlay.Parent = gui
+
+-- State variables
+local aimbotEnabled = false
+local espEnabled = true
+local sensitivity = 0.5
+local boxColor = Color3.fromRGB(255, 0, 0)
+local trackedElements = {} -- Pool of UI elements
+local trackedPlayers = {} -- Map of players to their tracked elements
+local lastFramePlayers = {} -- Track players from last frame to avoid rebuilding
+
+-- Wait for camera with timeout
+local camera = workspace.CurrentCamera
+local attempt = 0
+while not camera and attempt < 100 do
+    game:GetService("RunService").Heartbeat:Wait()
+    camera = workspace.CurrentCamera
+    attempt = attempt + 1
+end
+
+if not camera then
+    warn("No camera found after waiting, exiting")
+    return
+end
 
 -- Create UI
 local uiContainer = Instance.new("Frame")
@@ -40,6 +73,7 @@ title.Size = UDim2.new(1, 0, 0, 30)
 title.Position = UDim2.new(0, 0, 0, 0)
 title.Parent = panel
 
+-- Close button
 local closeButton = Instance.new("TextButton")
 closeButton.Text = "Close [ESC]"
 closeButton.Font = Enum.Font.SourceSansBold
@@ -53,7 +87,7 @@ closeButton.MouseButton1Click:Connect(function()
 end)
 closeButton.Parent = panel
 
--- Aimbot settings
+-- Aimbot section
 local aimbotSection = Instance.new("Frame")
 aimbotSection.Name = "AimbotSection"
 aimbotSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -72,7 +106,7 @@ aimbotLabel.Position = UDim2.new(0, 0, 0, 0)
 aimbotLabel.Parent = aimbotSection
 
 local aimbotToggle = Instance.new("TextButton")
-aimbotToggle.Text = "Aimbot On"
+aimbotToggle.Text = "Aimbot Off"
 aimbotToggle.Font = Enum.Font.SourceSansBold
 aimbotToggle.TextSize = 12
 aimbotToggle.BackgroundTransparency = 0
@@ -80,14 +114,8 @@ aimbotToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 aimbotToggle.Size = UDim2.new(0, 80, 0, 20)
 aimbotToggle.Position = UDim2.new(0.5, -40, 0, 30)
 aimbotToggle.MouseButton1Click:Connect(function()
-    local currentText = aimbotToggle.Text
-    if currentText == "Aimbot On" then
-        aimbotToggle.Text = "Aimbot Off"
-        aimbotEnabled = false
-    else
-        aimbotToggle.Text = "Aimbot On"
-        aimbotEnabled = true
-    end
+    aimbotEnabled = not aimbotEnabled
+    aimbotToggle.Text = aimbotEnabled and "Aimbot On" or "Aimbot Off"
 end)
 aimbotToggle.Parent = aimbotSection
 
@@ -101,11 +129,7 @@ sensitivityLabel.Size = UDim2.new(0, 100, 0, 20)
 sensitivityLabel.Position = UDim2.new(0, 50, 0, 60)
 sensitivityLabel.Parent = aimbotSection
 
--- Update sensitivity label when slider changes
-local sensitivity = 0.5
-sensitivityLabel.Text = "Sensitivity: " .. sensitivity
-
--- ESP settings
+-- ESP section
 local espSection = Instance.new("Frame")
 espSection.Name = "ESPSection"
 espSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -132,14 +156,9 @@ espToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 espToggle.Size = UDim2.new(0, 80, 0, 20)
 espToggle.Position = UDim2.new(0.5, -40, 0, 30)
 espToggle.MouseButton1Click:Connect(function()
-    local currentText = espToggle.Text
-    if currentText == "ESP On" then
-        espToggle.Text = "ESP Off"
-        espEnabled = false
-    else
-        espToggle.Text = "ESP On"
-        espEnabled = true
-    end
+    espEnabled = not espEnabled
+    espToggle.Text = espEnabled and "ESP On" or "ESP Off"
+    overlay.Visible = espEnabled
 end)
 espToggle.Parent = espSection
 
@@ -153,7 +172,6 @@ boxColorLabel.Size = UDim2.new(0, 80, 0, 20)
 boxColorLabel.Position = UDim2.new(0, 20, 0, 60)
 boxColorLabel.Parent = espSection
 
-local boxColor = Color3.fromRGB(255, 0, 0)
 local boxColorDisplay = Instance.new("Frame")
 boxColorDisplay.BackgroundColor3 = boxColor
 boxColorDisplay.BorderSizePixel = 1
@@ -162,31 +180,15 @@ boxColorDisplay.Size = UDim2.new(0, 20, 0, 20)
 boxColorDisplay.Position = UDim2.new(0, 100, 0, 60)
 boxColorDisplay.Parent = espSection
 
--- Global variables
-local aimbotEnabled = false
-local espEnabled = true
-
--- Create overlay for ESP
-local overlay = Instance.new("Frame")
-overlay.Name = "Overlay"
-overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-overlay.BackgroundTransparency = 1  -- Added transparency
-overlay.BorderSizePixel = 0
-overlay.Position = UDim2.new(0, 0, 0, 0)
-overlay.Size = UDim2.new(1, 0, 1, 0)
-overlay.Visible = false
-overlay.Parent = gui
-
--- Create storage for ESP elements
-local espElements = {}
-
 -- Keybind handler
-userInputService.InputBegan:Connect(function(input)
+userInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end -- Ignore already processed inputs
+    
     if input.KeyCode == Enum.KeyCode.RightShift then
-        uiContainer.Visible = true
+        uiContainer.Visible = not uiContainer.Visible
     elseif input.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = not aimbotEnabled
-        aimbotToggle.Text = aimbotEnabled and "Aimbot Off" or "Aimbot On"
+        aimbotToggle.Text = aimbotEnabled and "Aimbot On" or "Aimbot Off"
     elseif input.KeyCode == Enum.KeyCode.Escape then
         uiContainer.Visible = false
     end
@@ -196,7 +198,11 @@ end)
 local function getValidPlayers()
     local players = {}
     for _, plr in pairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+        if plr ~= player 
+            and plr.Character 
+            and plr.Character:FindFirstChild("Humanoid") 
+            and plr.Character.Humanoid.Health > 0 
+            and plr.Character:FindFirstChild("HumanoidRootPart") then
             table.insert(players, plr)
         end
     end
@@ -205,10 +211,12 @@ end
 
 -- Get character parts (handles both R6 and R15)
 local function getCharacterParts(character)
+    local parts = {}
+    
     -- Check for R15 (no Body folder)
     local upperTorso = character:FindFirstChild("UpperTorso")
     if upperTorso then
-        return {
+        parts = {
             Head = character:FindFirstChild("Head"),
             Torso = upperTorso,
             LeftArm = character:FindFirstChild("LeftUpperArm"),  -- R15 uses different limb names
@@ -218,7 +226,7 @@ local function getCharacterParts(character)
         }
     else
         -- Fall back to R6
-        return {
+        parts = {
             Head = character:FindFirstChild("Head"),
             Torso = character:FindFirstChild("Torso"),
             LeftArm = character:FindFirstChild("Left Arm"),
@@ -227,11 +235,64 @@ local function getCharacterParts(character)
             RightLeg = character:FindFirstChild("Right Leg")
         }
     end
+    
+    -- Validate all parts exist
+    for name, part in pairs(parts) do
+        if not part then
+            parts[name] = nil
+        end
+    end
+    
+    return parts
 end
 
--- Aimbot functionality - Using camera focus (best available alternative)
+-- Create a new UI element of type typeName
+local function createUIElement(typeName)
+    local newElem = Instance.new(typeName)
+    newElem.Visible = false
+    newElem.Parent = overlay
+    table.insert(trackedElements, newElem)
+    return newElem
+end
+
+-- Get a UI element of type typeName from the pool
+local function getUIElement(typeName)
+    for _, elem in ipairs(trackedElements) do
+        if elem:IsA(typeName) and not elem.Visible then
+            elem.Visible = true
+            return elem
+        end
+    end
+    
+    -- Create new element if none available
+    return createUIElement(typeName)
+end
+
+-- Cleanup elements for a player
+local function cleanupPlayerElements(plr)
+    if trackedPlayers[plr] then
+        for _, elem in ipairs(trackedPlayers[plr]) do
+            elem.Visible = false
+        end
+        trackedPlayers[plr] = nil
+    end
+end
+
+-- Cleanup when player leaves
+game.Players.PlayerRemoving:Connect(function(plr)
+    cleanupPlayerElements(plr)
+end)
+
+-- Update camera reference periodically
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "CurrentCamera" then
+        camera = child
+    end
+end)
+
+-- Aimbot functionality
 runService.RenderStepped:Connect(function()
-    if aimbotEnabled then
+    if aimbotEnabled and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local players = getValidPlayers()
         local closestPlayer = nil
         local closestDistance = math.huge
@@ -263,13 +324,20 @@ runService.RenderStepped:Connect(function()
     if espEnabled then
         overlay.Visible = true
         
-        -- Clear previous elements
-        for i = #espElements, 1, -1 do
-            espElements[i]:Destroy()
-            table.remove(espElements, i)
+        -- Only rebuild tracking for players that changed since last frame
+        local currentPlayers = {}
+        for _, plr in ipairs(getValidPlayers()) do
+            currentPlayers[plr] = true
         end
         
-        -- Process all players
+        -- Remove elements for players no longer in view
+        for plr, _ in pairs(lastFramePlayers) do
+            if not currentPlayers[plr] then
+                cleanupPlayerElements(plr)
+            end
+        end
+        
+        -- Update elements for players in view
         for _, plr in ipairs(getValidPlayers()) do
             local character = plr.Character
             if character then
@@ -278,6 +346,9 @@ runService.RenderStepped:Connect(function()
                     local screenPoint, onScreen = camera:WorldToViewportPoint(head.Position)
                     
                     if onScreen then
+                        -- Track this player
+                        currentPlayers[plr] = true
+                        
                         -- Calculate dynamic box size based on distance
                         local distance = (head.Position - camera.CFrame.Position).Magnitude
                         local baseSize = 100
@@ -285,16 +356,20 @@ runService.RenderStepped:Connect(function()
                         local width = baseSize * scale
                         local height = baseSize * scale
                         
-                        -- Create box around player
-                        local box = Instance.new("Frame")
+                        -- Get or create box element
+                        local box = getUIElement("Frame")
                         box.BackgroundColor3 = boxColor
-                        box.BackgroundTransparency = 1  -- Removed solid fill
+                        box.BackgroundTransparency = 1  -- Transparent fill
                         box.BorderSizePixel = 1
                         box.BorderColor3 = Color3.fromRGB(255, 255, 255)
                         box.Position = UDim2.new(0, screenPoint.X - width/2, 0, screenPoint.Y - height/2)
                         box.Size = UDim2.new(0, width, 0, height)
-                        box.Parent = overlay
-                        table.insert(espElements, box)
+                        
+                        -- Track this element for this player
+                        if not trackedPlayers[plr] then
+                            trackedPlayers[plr] = {}
+                        end
+                        table.insert(trackedPlayers[plr], box)
                         
                         -- Draw skeleton lines
                         local parts = getCharacterParts(character)
@@ -302,31 +377,39 @@ runService.RenderStepped:Connect(function()
                             local headScreen, _ = camera:WorldToViewportPoint(parts.Head.Position)
                             local torsoScreen, _ = camera:WorldToViewportPoint(parts.Torso.Position)
                             
-                            local line = Instance.new("Frame")
+                            -- Create skeleton line between head and torso
+                            local line = getUIElement("Frame")
                             line.BackgroundColor3 = boxColor
                             line.BorderSizePixel = 0
-                            line.Size = UDim2.new(0, 2, 0, 10)
+                            line.Size = UDim2.new(0, 2, 0, math.abs(torsoScreen.Y - headScreen.Y))
                             line.Position = UDim2.new(0, headScreen.X - 1, 0, headScreen.Y)
-                            line.Parent = overlay
-                            table.insert(espElements, line)
+                            
+                            -- Track this element for this player
+                            table.insert(trackedPlayers[plr], line)
                         end
                         
                         -- Draw health bar
-                        local healthBar = Instance.new("Frame")
+                        local healthBar = getUIElement("Frame")
                         healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
                         healthBar.BorderSizePixel = 0
                         healthBar.Size = UDim2.new(0, width, 0, 10)
                         healthBar.Position = UDim2.new(0, screenPoint.X - width/2, 0, screenPoint.Y - height/2 - 15)
-                        healthBar.Parent = overlay
-                        table.insert(espElements, healthBar)
                         
-                        -- Health percentage
-                        local healthPercentage = plr.Character.Humanoid.Health / plr.Character.Humanoid.MaxHealth
-                        healthBar.Size = UDim2.new(0, width * healthPercentage, 0, 10)
+                        -- Track this element for this player
+                        table.insert(trackedPlayers[plr], healthBar)
+                        
+                        -- Health percentage (with safety check)
+                        local human = plr.Character:FindFirstChild("Humanoid")
+                        if human and human.MaxHealth > 0 then
+                            healthBar.Size = UDim2.new(0, width * (human.Health / human.MaxHealth), 0, 10)
+                        end
                     end
                 end
             end
         end
+        
+        -- Store current players for next frame
+        lastFramePlayers = currentPlayers
     else
         overlay.Visible = false
     end
