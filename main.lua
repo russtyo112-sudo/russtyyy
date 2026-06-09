@@ -256,12 +256,45 @@ function setupGUI()
     toggleESP.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
     toggleESP.Size = UDim2.new(1, 0, 0, 30)
     toggleESP.Position = UDim2.new(0, 0, 0, 0)
+    local espEnabled = false
+    toggleESP.Text = "ESP: OFF"
+    toggleESP.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+
     toggleESP.MouseButton1Click:Connect(function()
-        if espUpdate then
-            espUpdate:Disconnect()
-            espUpdate = nil
+        espEnabled = not espEnabled
+        if espEnabled then
+            toggleESP.Text = "ESP: ON"
+            toggleESP.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+            -- init ESP for all current players
+            for _, plr in ipairs(game.Players:GetPlayers()) do
+                if plr ~= game.Players.LocalPlayer then
+                    if plr.Character then
+                        initESP(plr)
+                    end
+                end
+            end
+            -- ESP starts OFF, toggled by button
         else
-            espUpdate = game:GetService("RunService").Heartbeat:Connect(updateESP)
+            toggleESP.Text = "ESP: OFF"
+            toggleESP.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+            if espUpdate then
+                espUpdate:Disconnect()
+                espUpdate = nil
+            end
+            -- destroy all ESP objects
+            for _, plr in ipairs(game.Players:GetPlayers()) do
+                if espObjects[plr] then
+                    for _, obj in ipairs(espObjects[plr]) do
+                        if typeof(obj) == "Instance" then
+                            obj:Destroy()
+                        end
+                    end
+                    if espObjects[plr].billboard then
+                        espObjects[plr].billboard:Destroy()
+                    end
+                    espObjects[plr] = nil
+                end
+            end
         end
     end)
 
@@ -373,24 +406,22 @@ function setupGUI()
         teamCheckValue.Text = tostring(teamCheck)
     end)
 
-    local startAimbot = Instance.new("TextButton", aimbotSection)
-    startAimbot.Text = "Start Aimbot"
-    startAimbot.TextColor3 = Color3.fromRGB(255, 255, 255)
-    startAimbot.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
-    startAimbot.Size = UDim2.new(1, 0, 0, 30)
-    startAimbot.Position = UDim2.new(0, 0, 0, 105)
-    startAimbot.MouseButton1Click:Connect(function()
-        setupAimbot()
-    end)
-
-    local stopAimbot = Instance.new("TextButton", aimbotSection)
-    stopAimbot.Text = "Stop Aimbot"
-    stopAimbot.TextColor3 = Color3.fromRGB(255, 255, 255)
-    stopAimbot.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
-    stopAimbot.Size = UDim2.new(1, 0, 0, 30)
-    stopAimbot.Position = UDim2.new(0, 0, 0, 135)
-    stopAimbot.MouseButton1Click:Connect(function()
-        cleanupAimbot()
+    local aimbotBtn = Instance.new("TextButton", aimbotSection)
+    aimbotBtn.Text = "AIMBOT: OFF"
+    aimbotBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    aimbotBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    aimbotBtn.Size = UDim2.new(1, 0, 0, 30)
+    aimbotBtn.Position = UDim2.new(0, 0, 0, 105)
+    aimbotBtn.MouseButton1Click:Connect(function()
+        if aimbotEnabled then
+            cleanupAimbot()
+            aimbotBtn.Text = "AIMBOT: OFF"
+            aimbotBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        else
+            setupAimbot()
+            aimbotBtn.Text = "AIMBOT: ON"
+            aimbotBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+        end
     end)
 end
 
