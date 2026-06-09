@@ -2,6 +2,8 @@
 local gui = Instance.new("ScreenGui")
 gui.Name = "XenoExecutor"
 gui.ResetOnSpawn = false
+gui.Enabled = true
+gui.IgnoreGuiInset = true
 
 -- Parent to PlayerGui
 local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -14,6 +16,7 @@ mainPanel.Size = UDim2.new(0, 300, 0, 300)
 mainPanel.Position = UDim2.new(0.5, -150, 0.5, -150)
 mainPanel.Draggable = true
 mainPanel.Active = true
+mainPanel.Visible = true
 
 -- Title bar
 local titleBar = Instance.new("Frame", mainPanel)
