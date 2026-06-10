@@ -1,4 +1,4 @@
--- XenoExecutor (Silent Aim + ESP + Offsets for The Armory)
+-- XenoExecutor (Fixed for The Armory)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -26,26 +26,18 @@ sg.IgnoreGuiInset = true
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent = lpGui
 
--- ── ESP box storage ───────────────────────────────────────────
+-- ── ESP ───────────────────────────────────────────────────────
 local espData = {}
 
 local function removeESP(plr)
-    local d = espData[plr]
-    if not d then return end
-    for _, v in pairs(d) do
-        if typeof(v) == "Instance" then
-            pcall(function() v:Destroy() end)
+    if espData[plr] then
+        for _, v in pairs(espData[plr]) do
+            if v and v:IsA("Instance") then
+                v:Destroy()
+            end
         end
+        espData[plr] = nil
     end
-    espData[plr] = nil
-end
-
-local function hideESP(plr)
-    local d = espData[plr]
-    if not d then return end
-    if d.box then d.box.Visible = false end
-    if d.hpBg then d.hpBg.Visible = false end
-    if d.lbl then d.lbl.Visible = false end
 end
 
 local function createESPFor(plr)
@@ -105,6 +97,7 @@ local function createESPFor(plr)
 end
 
 local function getBox(char)
+    if not char then return nil end
     local mn = Vector2.new(math.huge, math.huge)
     local mx = Vector2.new(-math.huge, -math.huge)
     local hit = false
@@ -113,10 +106,8 @@ local function getBox(char)
             local s, on = cam:WorldToViewportPoint(p.Position)
             if on then
                 hit = true
-                if s.X < mn.X then mn = Vector2.new(s.X, mn.Y) end
-                if s.Y < mn.Y then mn = Vector2.new(mn.X, s.Y) end
-                if s.X > mx.X then mx = Vector2.new(s.X, mx.Y) end
-                if s.Y > mx.Y then mx = Vector2.new(mx.X, s.Y) end
+                mn = Vector2.new(math.min(s.X, mn.X), math.min(s.Y, mn.Y))
+                mx = Vector2.new(math.max(s.X, mx.X), math.max(s.Y, mx.Y))
             end
         end
     end
@@ -124,47 +115,41 @@ local function getBox(char)
     return mn.X - 4, mn.Y - 4, mx.X + 4, mx.Y + 4
 end
 
--- ── ESP update loop ───────────────────────────────────────────
 local function runESP()
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= lp then
-            local char = plr.Character
-            local hum = char and char:FindFirstChild("Humanoid")
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-
-            if char and hum and root and hum.Health > 0 then
+        if plr ~= lp and plr.Character then
+            local hum = plr.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
                 createESPFor(plr)
                 local d = espData[plr]
                 if d then
-                    local x1, y1, x2, y2 = getBox(char)
+                    local x1, y1, x2, y2 = getBox(plr.Character)
                     if x1 then
-                        local w = x2 - x1
-                        local h = y2 - y1
+                        local w, h = x2 - x1, y2 - y1
                         d.box.Position = UDim2.new(0, x1, 0, y1)
                         d.box.Size = UDim2.new(0, w, 0, h)
                         d.box.Visible = true
-
-                        local pct = hum.Health / hum.MaxHealth
                         d.hpBg.Position = UDim2.new(0, x1 - 7, 0, y1)
                         d.hpBg.Size = UDim2.new(0, 4, 0, h)
                         d.hpBg.Visible = true
-                        d.hp.Size = UDim2.new(1, 0, pct, 0)
-
+                        d.hp.Size = UDim2.new(1, 0, hum.Health / hum.MaxHealth, 0)
                         d.lbl.Position = UDim2.new(0, x1, 0, y1 - 15)
                         d.lbl.Size = UDim2.new(0, w, 0, 14)
                         d.lbl.Visible = true
                     else
-                        hideESP(plr)
+                        if d.box then d.box.Visible = false end
+                        if d.hpBg then d.hpBg.Visible = false end
+                        if d.lbl then d.lbl.Visible = false end
                     end
                 end
             else
-                hideESP(plr)
+                removeESP(plr)
             end
         end
     end
 end
 
--- ── FOV circle ────────────────────────────────────────────────
+-- ── FOV Circle ────────────────────────────────────────────────
 local fovFrame = Instance.new("Frame", sg)
 fovFrame.BackgroundTransparency = 1
 fovFrame.BorderSizePixel = 0
@@ -183,19 +168,18 @@ local function updateFOV()
     fovFrame.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
 end
 
--- ── Silent Aim Logic ─────────────────────────────────────────
+-- ── Silent Aim ────────────────────────────────────────────────
 local function getClosestPlayer()
     local closest, closestDist = nil, math.huge
     local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
 
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= lp then
-            local skip = teamCheck and (plr.Team == lp.Team)
+        if plr ~= lp and plr.Character then
+            local skip = teamCheck and plr.Team == lp.Team
             if not skip then
-                local char = plr.Character
-                local hum = char and char:FindFirstChild("Humanoid")
-                if char and hum and hum.Health > 0 then
-                    local head = char:FindFirstChild(targetPart) or char:FindFirstChild("Head")
+                local hum = plr.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    local head = plr.Character:FindFirstChild(targetPart) or plr.Character:FindFirstChild("Head")
                     if head then
                         local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
                         if onScreen then
@@ -227,9 +211,7 @@ end
 
 local function runAimbot()
     local target = getClosestPlayer()
-    if target then
-        silentAim(target)
-    end
+    if target then silentAim(target) end
 end
 
 -- ── Input Handling ────────────────────────────────────────────
@@ -246,6 +228,9 @@ UIS.InputBegan:Connect(function(inp, gp)
                 end
             end)
         end
+    elseif inp.KeyCode == Enum.KeyCode.RightShift then
+        mainPanel.Visible = not mainPanel.Visible
+        reopenBtn.Visible = not mainPanel.Visible
     end
 end)
 
@@ -261,7 +246,8 @@ UIS.InputEnded:Connect(function(inp)
 end
 
 -- ── Main Panel ────────────────────────────────────────────────
-local mainPanel = Instance.new("Frame", sg)
+local mainPanel = Instance.new("Frame")
+mainPanel.Name = "MainPanel"
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 mainPanel.Size = UDim2.new(0, 300, 0, 400)
 mainPanel.Position = UDim2.new(0.5, -150, 0.5, -200)
@@ -269,19 +255,23 @@ mainPanel.Draggable = true
 mainPanel.Active = true
 mainPanel.Visible = true
 mainPanel.BorderSizePixel = 0
+mainPanel.Parent = sg
 
 local mc = Instance.new("UICorner", mainPanel)
 mc.CornerRadius = UDim.new(0, 8)
 
--- title
-local titleBar = Instance.new("Frame", mainPanel)
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
 titleBar.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
 titleBar.Size = UDim2.new(1, 0, 0, 32)
 titleBar.BorderSizePixel = 0
+titleBar.Parent = mainPanel
+
 local tc = Instance.new("UICorner", titleBar)
 tc.CornerRadius = UDim.new(0, 8)
 
-local titleLbl = Instance.new("TextLabel", titleBar)
+local titleLbl = Instance.new("TextLabel")
+titleLbl.Name = "TitleLabel"
 titleLbl.Text = "  Xeno Executor"
 titleLbl.Font = Enum.Font.GothamBold
 titleLbl.TextSize = 14
@@ -289,9 +279,25 @@ titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLbl.BackgroundTransparency = 1
 titleLbl.Size = UDim2.new(1, -40, 1, 0)
 titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+titleLbl.Parent = titleBar
 
--- reopen button
-local reopenBtn = Instance.new("TextButton", sg)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Text = "✕"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Size = UDim2.new(0, 32, 1, 0)
+closeBtn.Position = UDim2.new(1, -32, 0, 0)
+closeBtn.Parent = titleBar
+closeBtn.MouseButton1Click:Connect(function()
+    mainPanel.Visible = false
+    reopenBtn.Visible = true
+end)
+
+local reopenBtn = Instance.new("TextButton")
+reopenBtn.Name = "ReopenButton"
 reopenBtn.Text = "☰"
 reopenBtn.Font = Enum.Font.GothamBold
 reopenBtn.TextSize = 18
@@ -301,38 +307,19 @@ reopenBtn.Size = UDim2.new(0, 36, 0, 36)
 reopenBtn.Position = UDim2.new(1, -46, 0, 10)
 reopenBtn.BorderSizePixel = 0
 reopenBtn.Visible = false
+reopenBtn.Parent = sg
+
 local rc = Instance.new("UICorner", reopenBtn)
 rc.CornerRadius = UDim.new(0, 6)
+
 reopenBtn.MouseButton1Click:Connect(function()
     mainPanel.Visible = true
     reopenBtn.Visible = false
 end)
 
-local closeBtn = Instance.new("TextButton", titleBar)
-closeBtn.Text = "✕"
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 14
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.BackgroundTransparency = 1
-closeBtn.Size = UDim2.new(0, 32, 1, 0)
-closeBtn.Position = UDim2.new(1, -32, 0, 0)
-closeBtn.MouseButton1Click:Connect(function()
-    mainPanel.Visible = false
-    reopenBtn.Visible = true
-end)
-
-UIS.InputBegan:Connect(function(inp, gp)
-    if gp then return end
-    if inp.KeyCode == Enum.KeyCode.RightShift then
-        local showing = not mainPanel.Visible
-        mainPanel.Visible = showing
-        reopenBtn.Visible = not showing
-    end
-end)
-
--- helper: row label
+-- ── UI Helpers ────────────────────────────────────────────────
 local function rowLabel(y, txt)
-    local l = Instance.new("TextLabel", mainPanel)
+    local l = Instance.new("TextLabel")
     l.Text = txt
     l.Font = Enum.Font.GothamBold
     l.TextSize = 10
@@ -341,17 +328,19 @@ local function rowLabel(y, txt)
     l.Size = UDim2.new(1, -20, 0, 16)
     l.Position = UDim2.new(0, 10, 0, y)
     l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = mainPanel
 end
 
--- helper: toggle button
 local function toggleBtn(y, offTxt, onTxt, initOn, onChange)
-    local btn = Instance.new("TextButton", mainPanel)
+    local btn = Instance.new("TextButton")
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 12
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Size = UDim2.new(1, -20, 0, 28)
     btn.Position = UDim2.new(0, 10, 0, y)
     btn.BorderSizePixel = 0
+    btn.Parent = mainPanel
+
     local bc = Instance.new("UICorner", btn)
     bc.CornerRadius = UDim.new(0, 6)
 
@@ -369,11 +358,8 @@ local function toggleBtn(y, offTxt, onTxt, initOn, onChange)
     return btn
 end
 
--- helper: slider
 local function makeSlider(y, labelTxt, mn, mx, init, onChange)
-    local valRef = {v = init}
-
-    local lbl = Instance.new("TextLabel", mainPanel)
+    local lbl = Instance.new("TextLabel")
     lbl.Font = Enum.Font.Gotham
     lbl.TextSize = 11
     lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -382,26 +368,33 @@ local function makeSlider(y, labelTxt, mn, mx, init, onChange)
     lbl.Position = UDim2.new(0, 10, 0, y)
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Text = labelTxt .. ": " .. tostring(init)
+    lbl.Parent = mainPanel
 
-    local track = Instance.new("Frame", mainPanel)
+    local track = Instance.new("Frame")
     track.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     track.BorderSizePixel = 0
     track.Size = UDim2.new(1, -20, 0, 8)
     track.Position = UDim2.new(0, 10, 0, y + 18)
+    track.Parent = mainPanel
+
     local trc = Instance.new("UICorner", track)
     trc.CornerRadius = UDim.new(1, 0)
 
-    local fill = Instance.new("Frame", track)
+    local fill = Instance.new("Frame")
     fill.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
     fill.BorderSizePixel = 0
+    fill.Parent = track
+
     local frc = Instance.new("UICorner", fill)
     frc.CornerRadius = UDim.new(1, 0)
 
-    local handle = Instance.new("TextButton", track)
+    local handle = Instance.new("TextButton")
     handle.Text = ""
     handle.BackgroundColor3 = Color3.fromRGB(180, 80, 255)
     handle.BorderSizePixel = 0
     handle.Size = UDim2.new(0, 14, 0, 14)
+    handle.Parent = track
+
     local hrc = Instance.new("UICorner", handle)
     hrc.CornerRadius = UDim.new(1, 0)
 
@@ -411,7 +404,6 @@ local function makeSlider(y, labelTxt, mn, mx, init, onChange)
         fill.Size = UDim2.new(frac, 0, 1, 0)
         handle.Position = UDim2.new(frac, 0, 0.5, -7)
         lbl.Text = labelTxt .. ": " .. string.format("%.1f", val)
-        valRef.v = val
         onChange(val)
     end
 
@@ -438,7 +430,7 @@ local function makeSlider(y, labelTxt, mn, mx, init, onChange)
     end)
 end
 
--- ── Build UI layout ───────────────────────────────────────────
+-- ── Build UI ─────────────────────────────────────────────────
 rowLabel(38, "── ESP ──────────────────────────────")
 toggleBtn(56, "ESP: OFF", "ESP: ON", false, function(on)
     espEnabled = on
@@ -458,30 +450,24 @@ toggleBtn(56, "ESP: OFF", "ESP: ON", false, function(on)
 end)
 
 rowLabel(96, "── AIMBOT ───────────────────────────")
-
 makeSlider(114, "Smoothness", 1, 100, 30, function(v)
     smoothness = v / 100
 end)
-
 makeSlider(148, "FOV Radius", 30, 500, fovRadius, function(v)
     fovRadius = v
 end)
-
--- X and Y Offset Sliders
 makeSlider(182, "X Offset", -100, 100, xOffset, function(v)
     xOffset = v
 end)
-
 makeSlider(216, "Y Offset", -100, 100, yOffset, function(v)
     yOffset = v
 end)
-
 toggleBtn(250, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
 rowLabel(286, "───────────────────────────────────")
-local hint = Instance.new("TextLabel", mainPanel)
+local hint = Instance.new("TextLabel")
 hint.Text = "Hold V = Silent Aim   RightShift = Menu"
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 10
@@ -489,8 +475,9 @@ hint.TextColor3 = Color3.fromRGB(120, 120, 120)
 hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1, -20, 0, 14)
 hint.Position = UDim2.new(0, 10, 0, 302)
+hint.Parent = mainPanel
 
--- ── Player events ─────────────────────────────────────────────
+-- ── Player Events ─────────────────────────────────────────────
 Players.PlayerRemoving:Connect(function(plr)
     removeESP(plr)
 end)
