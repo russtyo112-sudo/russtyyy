@@ -1,4 +1,4 @@
--- XenoExecutor (Silent Aim + ESP for The Armory)
+-- XenoExecutor (Silent Aim + ESP + Offsets for The Armory)
 local Players    = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS        = game:GetService("UserInputService")
@@ -9,12 +9,14 @@ local lpGui      = lp:WaitForChild("PlayerGui")
 -- ── State ─────────────────────────────────────────────────────
 local espEnabled    = false
 local aimbotEnabled = false
-local smoothness    = 0.3  -- Lower = smoother, less detectable
+local smoothness    = 0.3
 local fovRadius     = 150
 local targetPart    = "Head"
 local teamCheck     = false
 local espLoop       = nil
 local aimbotConnection = nil
+local xOffset       = 0  -- New: X offset for silent aim
+local yOffset       = 0  -- New: Y offset for silent aim
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -204,9 +206,10 @@ local function silentAim(target)
     local mouse = lp:GetMouse()
     local screenPos, onScreen = cam:WorldToViewportPoint(target.Position)
     if onScreen then
+        -- Apply X and Y offsets
+        screenPos = Vector2.new(screenPos.X + xOffset, screenPos.Y + yOffset)
         local currentPos = Vector2.new(mouse.X, mouse.Y)
-        local targetPos = Vector2.new(screenPos.X, screenPos.Y)
-        local delta = (targetPos - currentPos) * smoothness
+        local delta = (screenPos - currentPos) * smoothness
         mousemoverel(delta.X, delta.Y)
     end
 end
@@ -244,13 +247,13 @@ UIS.InputEnded:Connect(function(inp)
             aimbotConnection = nil
         end
     end
-end)
+end
 
 -- ── Main Panel ────────────────────────────────────────────────
 local mainPanel = Instance.new("Frame", sg)
 mainPanel.BackgroundColor3 = Color3.fromRGB(15,15,15)
-mainPanel.Size     = UDim2.new(0,300,0,370)
-mainPanel.Position = UDim2.new(0.5,-150,0.5,-185)
+mainPanel.Size     = UDim2.new(0,300,0,400)  -- Slightly taller for new sliders
+mainPanel.Position = UDim2.new(0.5,-150,0.5,-200)
 mainPanel.Draggable   = true
 mainPanel.Active      = true
 mainPanel.Visible     = true
@@ -442,11 +445,20 @@ makeSlider(148, "FOV Radius", 30, 500, fovRadius, function(v)
     fovRadius = v
 end)
 
-toggleBtn(188, "Team Check: OFF", "Team Check: ON", false, function(on)
+-- New: X and Y Offset Sliders
+makeSlider(182, "X Offset", -100, 100, xOffset, function(v)
+    xOffset = v
+end)
+
+makeSlider(216, "Y Offset", -100, 100, yOffset, function(v)
+    yOffset = v
+end)
+
+toggleBtn(250, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
-rowLabel(224, "───────────────────────────────────")
+rowLabel(286, "───────────────────────────────────")
 local hint = Instance.new("TextLabel", mainPanel)
 hint.Text = "Hold V = Silent Aim   RightShift = Menu"
 hint.Font = Enum.Font.Gotham
@@ -454,7 +466,7 @@ hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120,120,120)
 hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1,-20,0,14)
-hint.Position = UDim2.new(0,10,0,240)
+hint.Position = UDim2.new(0,10,0,302)
 
 -- ── Player events ─────────────────────────────────────────────
 Players.PlayerRemoving:Connect(function(plr)
