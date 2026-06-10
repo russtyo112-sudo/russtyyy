@@ -1,4 +1,4 @@
--- XenoExecutor (Fixed for The Armory)
+-- XenoExecutor (Fixed + Offsets for The Armory)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -202,6 +202,7 @@ local function silentAim(target)
     local mouse = lp:GetMouse()
     local screenPos, onScreen = cam:WorldToViewportPoint(target.Position)
     if onScreen then
+        -- Apply offsets
         screenPos = Vector2.new(screenPos.X + xOffset, screenPos.Y + yOffset)
         local currentPos = Vector2.new(mouse.X, mouse.Y)
         local delta = (screenPos - currentPos) * smoothness
@@ -243,7 +244,7 @@ UIS.InputEnded:Connect(function(inp)
             aimbotConnection = nil
         end
     end
-end
+end)
 
 -- ── Main Panel ────────────────────────────────────────────────
 local mainPanel = Instance.new("Frame")
@@ -456,6 +457,7 @@ end)
 makeSlider(148, "FOV Radius", 30, 500, fovRadius, function(v)
     fovRadius = v
 end)
+-- Offset Sliders
 makeSlider(182, "X Offset", -100, 100, xOffset, function(v)
     xOffset = v
 end)
