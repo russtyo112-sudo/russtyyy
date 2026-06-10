@@ -253,9 +253,6 @@ UIS.InputBegan:Connect(function(inp, gp)
                 end
             end)
         end
-    elseif inp.KeyCode == Enum.KeyCode.RightShift then
-        mainPanel.Visible = not mainPanel.Visible
-        reopenBtn.Visible = not mainPanel.Visible
     end
 end)
 
@@ -296,6 +293,7 @@ titleLbl.TextColor3        = Color3.fromRGB(255, 255, 255)
 titleLbl.BackgroundTransparency = 1
 titleLbl.Size              = UDim2.new(1, -40, 1, 0)
 titleLbl.TextXAlignment    = Enum.TextXAlignment.Left
+titleLbl.Parent            = titleBar
 
 local closeBtn = Instance.new("TextButton", titleBar)
 closeBtn.Text              = "✕"
@@ -324,6 +322,15 @@ Instance.new("UICorner", reopenBtn).CornerRadius = UDim.new(0, 6)
 reopenBtn.MouseButton1Click:Connect(function()
     mainPanel.Visible = true
     reopenBtn.Visible = false
+end)
+
+-- RightShift toggle (registered after mainPanel/reopenBtn exist)
+UIS.InputBegan:Connect(function(inp, gp)
+    if gp then return end
+    if inp.KeyCode == Enum.KeyCode.RightShift then
+        mainPanel.Visible = not mainPanel.Visible
+        reopenBtn.Visible = not mainPanel.Visible
+    end
 end)
 
 -- ── UI helpers ────────────────────────────────────────────────
