@@ -90,17 +90,27 @@ function initESP(player)
 
     espObjects[player] = {}
 
+    -- Vertical health bar billboard — skinny, sits to the left of the player
     local billboardGui = Instance.new("BillboardGui")
     billboardGui.Adornee = root
     billboardGui.Parent = char
     billboardGui.AlwaysOnTop = true
-    billboardGui.Size = UDim2.new(0, 100, 0, 20)
-    billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+    billboardGui.Size = UDim2.new(0, 6, 0, 60)   -- narrow width, tall height
+    billboardGui.StudsOffset = Vector3.new(-1.2, 0, 0)  -- offset left of player
 
-    local healthBar = Instance.new("Frame", billboardGui)
-    healthBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    healthBar.Size = UDim2.new(1, 0, 0, 10)
-    healthBar.Position = UDim2.new(0, 0, -0.1, 0)
+    -- background track (dark)
+    local healthBg = Instance.new("Frame", billboardGui)
+    healthBg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    healthBg.Size = UDim2.new(1, 0, 1, 0)
+    healthBg.BorderSizePixel = 0
+
+    -- green fill — grows from bottom up
+    local healthBar = Instance.new("Frame", healthBg)
+    healthBar.BackgroundColor3 = Color3.fromRGB(0, 220, 60)
+    healthBar.Size = UDim2.new(1, 0, 1, 0)        -- starts full
+    healthBar.Position = UDim2.new(0, 0, 0, 0)
+    healthBar.AnchorPoint = Vector2.new(0, 1)
+    healthBar.Position = UDim2.new(0, 0, 1, 0)    -- anchor bottom
     healthBar.BorderSizePixel = 0
 
     local parts = {"Head", "UpperTorso", "LowerTorso", "LeftUpperArm",
@@ -142,8 +152,9 @@ function updateESP()
                 if rootPart then
                     local humanoid = char:FindFirstChild("Humanoid")
                     if humanoid and espObjects[player] and espObjects[player].healthBar then
-                        espObjects[player].healthBar.Size = UDim2.new(
-                            humanoid.Health / humanoid.MaxHealth, 0, 1, 0)
+                        local pct = humanoid.Health / humanoid.MaxHealth
+                        -- vertical bar: scale Y from bottom
+                        espObjects[player].healthBar.Size = UDim2.new(1, 0, pct, 0)
                     end
                 end
             end
@@ -176,46 +187,23 @@ end)
 
 -- Input handling
 local UIS = game:GetService("UserInputService")
-local espActive = false
+local FOV_RADIUS = 150  -- pixels from crosshair
 
 UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.RightShift then
         mainPanel.Visible = not mainPanel.Visible
     end
+    -- V hold = aimbot active
     if input.KeyCode == Enum.KeyCode.V then
-        espActive = true
-        for _, plr in ipairs(game.Players:GetPlayers()) do
-            if plr ~= game.Players.LocalPlayer and plr.Character then
-                task.spawn(initESP, plr)
-            end
-        end
-        if not espUpdate then
-            espUpdate = game:GetService("RunService").Heartbeat:Connect(updateESP)
-        end
+        setupAimbot()
     end
 end)
 
 UIS.InputEnded:Connect(function(input)
+    -- Release V = stop aimbot
     if input.KeyCode == Enum.KeyCode.V then
-        espActive = false
-        if espUpdate then
-            espUpdate:Disconnect()
-            espUpdate = nil
-        end
-        for _, plr in ipairs(game.Players:GetPlayers()) do
-            if espObjects[plr] then
-                for _, obj in ipairs(espObjects[plr]) do
-                    if typeof(obj) == "Instance" then
-                        pcall(function() obj:Destroy() end)
-                    end
-                end
-                if espObjects[plr].billboard then
-                    pcall(function() espObjects[plr].billboard:Destroy() end)
-                end
-                espObjects[plr] = nil
-            end
-        end
+        cleanupAimbot()
     end
 end)
 
@@ -259,16 +247,17 @@ function setupAimbot()
             end
         end
 
-        if targetPlayer and targetPlayer.Character then
+        -- only lock on if target is within FOV radius
+        if targetPlayer and minDistance <= FOV_RADIUS and targetPlayer.Character then
             local targetChar = targetPlayer.Character
             local part = targetChar:FindFirstChild(targetPart)
             if part then
                 local targetPos = part.Position
-                local targetScreenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(targetPos)
+                local _, onScreen = workspace.CurrentCamera:WorldToViewportPoint(targetPos)
                 if onScreen then
                     local targetCFrame = CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, targetPos)
-                        workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
-                        workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(targetCFrame, smoothness)
+                    workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+                    workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(targetCFrame, smoothness)
                 end
             end
         end
