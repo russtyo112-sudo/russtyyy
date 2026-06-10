@@ -172,48 +172,40 @@ end
 -- ── Update ESP each frame ─────────────────────────────────────
 local function updateESP()
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr == localPlayer then continue end
+        if plr ~= localPlayer then
+            local char = plr.Character
+            local hum  = char and char:FindFirstChild("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
 
-        local char = plr.Character
-        local hum  = char and char:FindFirstChild("Humanoid")
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-
-        if not char or not hum or not root or hum.Health <= 0 then
-            hideESP(plr)
-        else
-            -- wall check
-            if not canSee(root.Position) then
+            if not char or not hum or not root or hum.Health <= 0 then
                 hideESP(plr)
             else
-                createESP(plr)
-                local d = espData[plr]
-                if not d then continue end
-
-                local x1,y1,x2,y2 = getCharBox(char)
-                if not x1 then
+                if not canSee(root.Position) then
                     hideESP(plr)
-                    continue
+                else
+                    createESP(plr)
+                    local d = espData[plr]
+                    if d then
+                        local x1,y1,x2,y2 = getCharBox(char)
+                        if not x1 then
+                            hideESP(plr)
+                        else
+                            local w = x2-x1
+                            local h = y2-y1
+                            d.box.Position = UDim2.new(0,x1,0,y1)
+                            d.box.Size = UDim2.new(0,w,0,h)
+                            d.box.Visible = true
+                            local hpPct = hum.Health / hum.MaxHealth
+                            d.hpBg.Position = UDim2.new(0,x1-6,0,y1)
+                            d.hpBg.Size = UDim2.new(0,4,0,h)
+                            d.hpBg.Visible = true
+                            d.hp.Size = UDim2.new(1,0,hpPct,0)
+                            d.lbl.Position = UDim2.new(0,x1,0,y1-14)
+                            d.lbl.Size = UDim2.new(0,w,0,14)
+                            d.lbl.Visible = true
+                        end
+                    end
                 end
-
-                local w = x2-x1
-                local h = y2-y1
-
-                -- position box
-                d.box.Position = UDim2.new(0,x1,0,y1)
-                d.box.Size = UDim2.new(0,w,0,h)
-                d.box.Visible = true
-
-                -- health bar left of box, same height
-                local hpPct = hum.Health / hum.MaxHealth
-                d.hpBg.Position = UDim2.new(0,x1-6,0,y1)
-                d.hpBg.Size = UDim2.new(0,4,0,h)
-                d.hpBg.Visible = true
-                d.hp.Size = UDim2.new(1,0,hpPct,0)
-
-                -- label above box
-                d.lbl.Position = UDim2.new(0,x1,0,y1-14)
-                d.lbl.Size = UDim2.new(0,w,0,14)
-                d.lbl.Visible = true
             end
         end
     end
@@ -259,24 +251,26 @@ local function setupAimbot()
         local target  = nil
 
         for _, plr in ipairs(Players:GetPlayers()) do
-            if plr == localPlayer then continue end
-            if teamCheck and plr.Team == localPlayer.Team then continue end
-
-            local char = plr.Character
-            local hum  = char and char:FindFirstChild("Humanoid")
-            if not char or not hum or hum.Health <= 0 then continue end
-
-            local head = char:FindFirstChild("Head")
-            if not head then continue end
-
-            local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
-            if not onScreen then continue end
-
-            local sv = Vector2.new(screenPos.X, screenPos.Y)
-            local dist = (sv - screenCenter).Magnitude
-            if dist < fovRadius and dist < minDist then
-                minDist = dist
-                target  = plr
+            if plr ~= localPlayer then
+                local skipTeam = teamCheck and plr.Team == localPlayer.Team
+                if not skipTeam then
+                    local char = plr.Character
+                    local hum  = char and char:FindFirstChild("Humanoid")
+                    if char and hum and hum.Health > 0 then
+                        local head = char:FindFirstChild("Head")
+                        if head then
+                            local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
+                            if onScreen then
+                                local sv = Vector2.new(screenPos.X, screenPos.Y)
+                                local dist = (sv - screenCenter).Magnitude
+                                if dist < fovRadius and dist < minDist then
+                                    minDist = dist
+                                    target  = plr
+                                end
+                            end
+                        end
+                    end
+                end
             end
         end
 
