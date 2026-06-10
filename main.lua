@@ -206,22 +206,30 @@ end
 
 local function moveMouseTo(target)
     if not target then return end
-    local sp, on = cam:WorldToViewportPoint(target.Position)
+    -- Apply offset to target world position before aiming
+    local offsetPos = target.Position + Vector3.new(xOffset * 0.01, yOffset * 0.01, 0)
+    local _, on = cam:WorldToViewportPoint(offsetPos)
     if not on then return end
 
-    local targetScreen = Vector2.new(sp.X + xOffset, sp.Y + yOffset)
-    local mouse        = lp:GetMouse()
-    local currentPos   = Vector2.new(mouse.X, mouse.Y)
-
+    local goalCF = CFrame.lookAt(cam.CFrame.Position, offsetPos)
     if stickyAim and lockedTarget == target then
-        -- Sticky: snap directly to target each frame, overriding all mouse input
-        local delta = (targetScreen - currentPos)
-        mousemoverel(delta.X, delta.Y)
+        -- Sticky: snap camera directly to target each frame
+        cam.CFrame = goalCF
     else
-        -- Normal smooth approach
-        local delta = (targetScreen - currentPos) * smoothness
-        mousemoverel(delta.X, delta.Y)
+        -- Smooth lerp toward target
+        cam.CFrame = cam.CFrame:Lerp(goalCF, smoothness)
     end
+end
+
+-- Ensure camera type allows our movement
+local function ensureCamType()
+    if cam.CameraType ~= Enum.CameraType.Scriptable then
+        cam.CameraType = Enum.CameraType.Scriptable
+    end
+end
+
+local function restoreCamType()
+    cam.CameraType = Enum.CameraType.Custom
 end
 
 local function runAimbot()
@@ -245,6 +253,7 @@ UIS.InputBegan:Connect(function(inp, gp)
         aimbotEnabled = true
         fovFrame.Visible = true
         lockedTarget = nil
+        ensureCamType()
         if not aimbotConnection then
             aimbotConnection = RunService.RenderStepped:Connect(function()
                 if aimbotEnabled then
@@ -261,6 +270,7 @@ UIS.InputEnded:Connect(function(inp)
         aimbotEnabled = false
         fovFrame.Visible = false
         lockedTarget = nil
+        restoreCamType()
         if aimbotConnection then
             aimbotConnection:Disconnect()
             aimbotConnection = nil
