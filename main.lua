@@ -1,4 +1,4 @@
--- XenoExecutor (Fixed + Offsets for The Armory)
+-- XenoExecutor (Lock-On Silent Aim + ESP + Offsets for The Armory)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -17,6 +17,7 @@ local espLoop = nil
 local aimbotConnection = nil
 local xOffset = 0
 local yOffset = 0
+local lockedTarget = nil  -- NEW: Stores the currently locked target
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -168,7 +169,7 @@ local function updateFOV()
     fovFrame.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
 end
 
--- ── Silent Aim ────────────────────────────────────────────────
+-- ── Silent Aim (Lock-On) ─────────────────────────────────────
 local function getClosestPlayer()
     local closest, closestDist = nil, math.huge
     local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
@@ -197,12 +198,24 @@ local function getClosestPlayer()
     return closest
 end
 
+local function isTargetValid(target)
+    if not target or not target.Parent then return false end
+    local plr = Players:GetPlayerFromCharacter(target.Parent)
+    if not plr or plr == lp then return false end
+    local hum = target.Parent:FindFirstChild("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    local screenPos, onScreen = cam:WorldToViewportPoint(target.Position)
+    if not onScreen then return false end
+    local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+    return dist < fovRadius
+end
+
 local function silentAim(target)
     if not target then return end
     local mouse = lp:GetMouse()
     local screenPos, onScreen = cam:WorldToViewportPoint(target.Position)
     if onScreen then
-        -- Apply offsets
         screenPos = Vector2.new(screenPos.X + xOffset, screenPos.Y + yOffset)
         local currentPos = Vector2.new(mouse.X, mouse.Y)
         local delta = (screenPos - currentPos) * smoothness
@@ -211,8 +224,20 @@ local function silentAim(target)
 end
 
 local function runAimbot()
+    -- If we have a locked target and it's still valid, keep using it
+    if lockedTarget and isTargetValid(lockedTarget) then
+        silentAim(lockedTarget)
+        return
+    end
+
+    -- Otherwise, find a new target
     local target = getClosestPlayer()
-    if target then silentAim(target) end
+    if target then
+        lockedTarget = target
+        silentAim(target)
+    else
+        lockedTarget = nil
+    end
 end
 
 -- ── Input Handling ────────────────────────────────────────────
@@ -221,6 +246,7 @@ UIS.InputBegan:Connect(function(inp, gp)
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = true
         fovFrame.Visible = true
+        lockedTarget = nil  -- Reset lock when starting a new aim session
         if not aimbotConnection then
             aimbotConnection = RunService.RenderStepped:Connect(function()
                 if aimbotEnabled then
@@ -239,6 +265,7 @@ UIS.InputEnded:Connect(function(inp)
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = false
         fovFrame.Visible = false
+        lockedTarget = nil  -- Clear lock when releasing V
         if aimbotConnection then
             aimbotConnection:Disconnect()
             aimbotConnection = nil
@@ -470,7 +497,7 @@ end)
 
 rowLabel(286, "───────────────────────────────────")
 local hint = Instance.new("TextLabel")
-hint.Text = "Hold V = Silent Aim   RightShift = Menu"
+hint.Text = "Hold V = Lock-On Silent Aim   RightShift = Menu"
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120, 120, 120)
@@ -482,6 +509,9 @@ hint.Parent = mainPanel
 -- ── Player Events ─────────────────────────────────────────────
 Players.PlayerRemoving:Connect(function(plr)
     removeESP(plr)
+    if lockedTarget and Players:GetPlayerFromCharacter(lockedTarget.Parent) == plr then
+        lockedTarget = nil
+    end
 end)
 
 Players.PlayerAdded:Connect(function(plr)
