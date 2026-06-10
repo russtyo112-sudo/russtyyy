@@ -12,9 +12,9 @@ local aimbotEnabled = false
 local smoothness    = 0.15
 local fovRadius     = 150
 local targetPart    = "Head"
-local teamCheck     = false   -- off by default so it works in FFA games
+local teamCheck     = false
 local espLoop       = nil
-local aimbotLoop    = nil
+local aimbotConnection = nil
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -25,7 +25,6 @@ sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent         = lpGui
 
 -- ── ESP box storage ───────────────────────────────────────────
--- espData[plr] = { box, top, bot, lft, rgt, hpBg, hp, lbl }
 local espData = {}
 
 local function removeESP(plr)
@@ -50,7 +49,6 @@ end
 local function createESPFor(plr)
     if espData[plr] then return end
 
-    -- outer container (transparent, no border)
     local box = Instance.new("Frame", sg)
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
@@ -68,7 +66,6 @@ local function createESPFor(plr)
     local lft = edge(box); lft.Size = UDim2.new(0,1,1,0); lft.Position = UDim2.new(0,0,0,0)
     local rgt = edge(box); rgt.Size = UDim2.new(0,1,1,0); rgt.Position = UDim2.new(1,-1,0,0)
 
-    -- health bar bg (left of box)
     local hpBg = Instance.new("Frame", sg)
     hpBg.BackgroundColor3 = Color3.fromRGB(40,40,40)
     hpBg.BorderSizePixel  = 0
@@ -81,7 +78,6 @@ local function createESPFor(plr)
     hp.Position         = UDim2.new(0,0,1,0)
     hp.Size             = UDim2.new(1,0,1,0)
 
-    -- name label
     local lbl = Instance.new("TextLabel", sg)
     lbl.BackgroundTransparency = 1
     lbl.TextColor3             = Color3.fromRGB(255,255,255)
@@ -95,7 +91,6 @@ local function createESPFor(plr)
     espData[plr] = {box=box, hpBg=hpBg, hp=hp, lbl=lbl}
 end
 
--- get 2D bounding box of character on screen
 local function getBox(char)
     local mn = Vector2.new(math.huge, math.huge)
     local mx = Vector2.new(-math.huge, -math.huge)
@@ -155,7 +150,7 @@ local function runESP()
     end
 end
 
--- ── FOV circle (drawn on sg, always on top) ───────────────────
+-- ── FOV circle ────────────────────────────────────────────────
 local fovFrame = Instance.new("Frame", sg)
 fovFrame.BackgroundTransparency = 1
 fovFrame.BorderSizePixel = 0
@@ -174,9 +169,7 @@ local function updateFOV()
     fovFrame.Size     = UDim2.new(0, fovRadius*2, 0, fovRadius*2)
 end
 
--- ── Aimbot (no camera lock — uses CFrame smoothly only while V held) ──
--- We do NOT set CameraType to Scriptable because that freezes movement.
--- Instead we use cam.CFrame directly each frame which works without locking.
+-- ── Aimbot ────────────────────────────────────────────────────
 local function runAimbot()
     local vp = cam.ViewportSize
     local center = Vector2.new(vp.X/2, vp.Y/2)
@@ -211,12 +204,34 @@ local function runAimbot()
         if part then
             local _, on = cam:WorldToViewportPoint(part.Position)
             if on then
-                -- lerp camera toward target WITHOUT locking CameraType
-                -- this lets the player still move
+                -- Temporarily set CameraType to Scriptable to ensure control
+                local oldCameraType = cam.CameraType
+                cam.CameraType = Enum.CameraType.Scriptable
+
                 local goal = CFrame.lookAt(cam.CFrame.Position, part.Position)
                 cam.CFrame = cam.CFrame:Lerp(goal, smoothness)
+
+                -- Restore CameraType
+                cam.CameraType = oldCameraType
             end
         end
+    end
+end
+
+local function startAimbot()
+    if aimbotConnection then aimbotConnection:Disconnect() end
+    aimbotConnection = RunService:BindToRenderStep("XenoAimbot", Enum.RenderPriority.Camera.Value + 1, function()
+        if aimbotEnabled then
+            updateFOV()
+            runAimbot()
+        end
+    end)
+end
+
+local function stopAimbot()
+    if aimbotConnection then
+        aimbotConnection:Disconnect()
+        aimbotConnection = nil
     end
 end
 
@@ -229,14 +244,7 @@ UIS.InputBegan:Connect(function(inp, gp)
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = true
         fovFrame.Visible = true
-        if not aimbotLoop then
-            aimbotLoop = RunService.RenderStepped:Connect(function()
-                if aimbotEnabled then
-                    updateFOV()
-                    runAimbot()
-                end
-            end)
-        end
+        startAimbot()
     end
 end)
 
@@ -244,10 +252,7 @@ UIS.InputEnded:Connect(function(inp)
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = false
         fovFrame.Visible = false
-        if aimbotLoop then
-            aimbotLoop:Disconnect()
-            aimbotLoop = nil
-        end
+        stopAimbot()
     end
 end)
 
@@ -280,7 +285,7 @@ titleLbl.BackgroundTransparency = 1
 titleLbl.Size = UDim2.new(1,-40,1,0)
 titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 
--- reopen button (always visible top-right of screen when panel closed)
+-- reopen button
 local reopenBtn = Instance.new("TextButton", sg)
 reopenBtn.Text = "☰"
 reopenBtn.Font = Enum.Font.GothamBold
@@ -310,7 +315,6 @@ closeBtn.MouseButton1Click:Connect(function()
     reopenBtn.Visible = true
 end)
 
--- also RightShift toggles it back
 UIS.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.KeyCode == Enum.KeyCode.RightShift then
@@ -401,7 +405,6 @@ local function makeSlider(y, labelTxt, mn, mx, init, onChange)
         onChange(val)
     end
 
-    -- init position
     setVal((init-mn)/(mx-mn))
 
     local dragging = false
