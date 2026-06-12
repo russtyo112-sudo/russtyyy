@@ -13,11 +13,11 @@ local smoothness = 0.3
 local fovRadius = 150
 local targetPart = "Head"
 local teamCheck = false
+local stickyAim = false -- NEW: Sticky Aim option
 local espLoop = nil
 local aimbotConnection = nil
 local lockedTarget = nil
 local aimLevel = "Head" -- Default to headshot
-local menuOpen = true
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -249,10 +249,13 @@ local function silentAim(target)
 end
 
 local function runAimbot()
-    if lockedTarget and isTargetValid(lockedTarget) then
+    -- If Sticky Aim is enabled and we have a locked target, keep using it
+    if stickyAim and lockedTarget and isTargetValid(lockedTarget) then
         silentAim(lockedTarget)
         return
     end
+
+    -- Otherwise, find a new target
     local target = getClosestPlayer()
     if target then
         lockedTarget = target
@@ -275,10 +278,10 @@ UIS.InputBegan:Connect(function(inp, gp)
                 end
             end)
         end
-    elseif inp.KeyCode == Enum.KeyCode.RightShift then
-        menuOpen = not menuOpen
-        mainPanel.Visible = menuOpen
-        reopenBtn.Visible = not menuOpen
+        -- Reset locked target when starting a new aim session (unless Sticky Aim is on)
+        if not stickyAim then
+            lockedTarget = nil
+        end
     end
 end)
 
@@ -297,8 +300,8 @@ end)
 local mainPanel = Instance.new("Frame")
 mainPanel.Name = "MainPanel"
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mainPanel.Size = UDim2.new(0, 300, 0, 380)
-mainPanel.Position = UDim2.new(0.5, -150, 0.5, -190)
+mainPanel.Size = UDim2.new(0, 300, 0, 400)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -200)
 mainPanel.Draggable = true
 mainPanel.Active = true
 mainPanel.Visible = true
@@ -340,31 +343,7 @@ closeBtn.Size = UDim2.new(0, 32, 1, 0)
 closeBtn.Position = UDim2.new(1, -32, 0, 0)
 closeBtn.Parent = titleBar
 closeBtn.MouseButton1Click:Connect(function()
-    menuOpen = false
     mainPanel.Visible = false
-    reopenBtn.Visible = true
-end)
-
-local reopenBtn = Instance.new("TextButton")
-reopenBtn.Name = "ReopenButton"
-reopenBtn.Text = "☰"
-reopenBtn.Font = Enum.Font.GothamBold
-reopenBtn.TextSize = 18
-reopenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-reopenBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
-reopenBtn.Size = UDim2.new(0, 36, 0, 36)
-reopenBtn.Position = UDim2.new(1, -46, 0, 10)
-reopenBtn.BorderSizePixel = 0
-reopenBtn.Visible = false
-reopenBtn.Parent = sg
-
-local rc = Instance.new("UICorner", reopenBtn)
-rc.CornerRadius = UDim.new(0, 6)
-
-reopenBtn.MouseButton1Click:Connect(function()
-    menuOpen = true
-    mainPanel.Visible = true
-    reopenBtn.Visible = false
 end)
 
 -- ── UI Helpers ────────────────────────────────────────────────
@@ -578,19 +557,22 @@ end)
 makeDropdown(182, "Aim Level", {"Head", "Body"}, "Head", function(v)
     aimLevel = v
 end)
-toggleBtn(240, "Team Check: OFF", "Team Check: ON", false, function(on)
+toggleBtn(216, "Sticky Aim: OFF", "Sticky Aim: ON", false, function(on)
+    stickyAim = on
+end)
+toggleBtn(250, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
-rowLabel(278, "───────────────────────────────────")
+rowLabel(286, "───────────────────────────────────")
 local hint = Instance.new("TextLabel")
-hint.Text = "Hold V = Lock-On Silent Aim   RightShift = Menu"
+hint.Text = "Hold V = Lock-On Silent Aim"
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120, 120, 120)
 hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1, -20, 0, 14)
-hint.Position = UDim2.new(0, 10, 0, 294)
+hint.Position = UDim2.new(0, 10, 0, 302)
 hint.Parent = mainPanel
 
 -- ── Player Events ─────────────────────────────────────────────
