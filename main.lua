@@ -13,11 +13,11 @@ local smoothness = 0.3
 local fovRadius = 150
 local targetPart = "Head"
 local teamCheck = false
-local stickyAim = false
 local espLoop = nil
 local aimbotConnection = nil
 local lockedTarget = nil
 local aimLevel = "Head" -- Default to headshot
+local menuOpen = true
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -244,24 +244,15 @@ local function silentAim(target)
         screenPos = Vector2.new(screenPos.X, screenPos.Y + yOffset)
         local currentPos = Vector2.new(mouse.X, mouse.Y)
         local delta = (screenPos - currentPos) * smoothness
-        if stickyAim then
-            -- Sticky Aim: Force mouse to stay on target
-            mousemoverel(delta.X, delta.Y)
-        else
-            -- Normal Aim: Allow mouse movement
-            mousemoverel(delta.X, delta.Y)
-        end
+        mousemoverel(delta.X, delta.Y)
     end
 end
 
 local function runAimbot()
-    if stickyAim and lockedTarget and isTargetValid(lockedTarget) then
-        -- Sticky Aim: Keep locked on the same target
+    if lockedTarget and isTargetValid(lockedTarget) then
         silentAim(lockedTarget)
         return
     end
-
-    -- Normal Aim: Find new target if not sticky or no locked target
     local target = getClosestPlayer()
     if target then
         lockedTarget = target
@@ -284,10 +275,10 @@ UIS.InputBegan:Connect(function(inp, gp)
                 end
             end)
         end
-        -- Reset locked target when starting a new aim session (unless Sticky Aim is on)
-        if not stickyAim then
-            lockedTarget = nil
-        end
+    elseif inp.KeyCode == Enum.KeyCode.RightShift then
+        menuOpen = not menuOpen
+        mainPanel.Visible = menuOpen
+        reopenBtn.Visible = not menuOpen
     end
 end)
 
@@ -306,8 +297,8 @@ end)
 local mainPanel = Instance.new("Frame")
 mainPanel.Name = "MainPanel"
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mainPanel.Size = UDim2.new(0, 300, 0, 400)
-mainPanel.Position = UDim2.new(0.5, -150, 0.5, -200)
+mainPanel.Size = UDim2.new(0, 300, 0, 380)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -190)
 mainPanel.Draggable = true
 mainPanel.Active = true
 mainPanel.Visible = true
@@ -349,7 +340,31 @@ closeBtn.Size = UDim2.new(0, 32, 1, 0)
 closeBtn.Position = UDim2.new(1, -32, 0, 0)
 closeBtn.Parent = titleBar
 closeBtn.MouseButton1Click:Connect(function()
+    menuOpen = false
     mainPanel.Visible = false
+    reopenBtn.Visible = true
+end)
+
+local reopenBtn = Instance.new("TextButton")
+reopenBtn.Name = "ReopenButton"
+reopenBtn.Text = "☰"
+reopenBtn.Font = Enum.Font.GothamBold
+reopenBtn.TextSize = 18
+reopenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+reopenBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+reopenBtn.Size = UDim2.new(0, 36, 0, 36)
+reopenBtn.Position = UDim2.new(1, -46, 0, 10)
+reopenBtn.BorderSizePixel = 0
+reopenBtn.Visible = false
+reopenBtn.Parent = sg
+
+local rc = Instance.new("UICorner", reopenBtn)
+rc.CornerRadius = UDim.new(0, 6)
+
+reopenBtn.MouseButton1Click:Connect(function()
+    menuOpen = true
+    mainPanel.Visible = true
+    reopenBtn.Visible = false
 end)
 
 -- ── UI Helpers ────────────────────────────────────────────────
@@ -465,46 +480,72 @@ local function makeSlider(y, labelTxt, mn, mx, init, onChange)
     end)
 end
 
-local function makeAimLevelButtons(y)
-    local headBtn = Instance.new("TextButton")
-    headBtn.Font = Enum.Font.GothamBold
-    headBtn.TextSize = 12
-    headBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    headBtn.Size = UDim2.new(0.45, -10, 0, 28)
-    headBtn.Position = UDim2.new(0, 10, 0, y)
-    headBtn.BorderSizePixel = 0
-    headBtn.BackgroundColor3 = aimLevel == "Head" and Color3.fromRGB(120, 40, 200) or Color3.fromRGB(70, 70, 70)
-    headBtn.Text = "Head"
-    headBtn.Parent = mainPanel
+local function makeDropdown(y, labelTxt, options, init, onChange)
+    local lbl = Instance.new("TextLabel")
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 11
+    lbl.TextColor3 = Color3.fromRGB(120, 40, 200)
+    lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(0.5, -10, 0, 16)
+    lbl.Position = UDim2.new(0, 10, 0, y)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Text = labelTxt
+    lbl.Parent = mainPanel
 
-    local hc = Instance.new("UICorner", headBtn)
-    hc.CornerRadius = UDim.new(0, 6)
+    local btn = Instance.new("TextButton")
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 12
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Size = UDim2.new(0.5, -10, 0, 28)
+    btn.Position = UDim2.new(0, 10, 0, y + 18)
+    btn.BorderSizePixel = 0
+    btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    btn.Text = init
+    btn.Parent = mainPanel
 
-    local bodyBtn = Instance.new("TextButton")
-    bodyBtn.Font = Enum.Font.GothamBold
-    bodyBtn.TextSize = 12
-    bodyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    bodyBtn.Size = UDim2.new(0.45, -10, 0, 28)
-    bodyBtn.Position = UDim2.new(0.5, 5, 0, y)
-    bodyBtn.BorderSizePixel = 0
-    bodyBtn.BackgroundColor3 = aimLevel == "Body" and Color3.fromRGB(120, 40, 200) or Color3.fromRGB(70, 70, 70)
-    bodyBtn.Text = "Body"
-    bodyBtn.Parent = mainPanel
-
-    local bc = Instance.new("UICorner", bodyBtn)
+    local bc = Instance.new("UICorner", btn)
     bc.CornerRadius = UDim.new(0, 6)
 
-    headBtn.MouseButton1Click:Connect(function()
-        aimLevel = "Head"
-        headBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
-        bodyBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    local frame = Instance.new("Frame")
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    frame.Size = UDim2.new(0.5, -10, 0, 0)
+    frame.Position = UDim2.new(0, 10, 0, y + 48)
+    frame.Visible = false
+    frame.Parent = mainPanel
+
+    local fc = Instance.new("UICorner", frame)
+    fc.CornerRadius = UDim.new(0, 6)
+
+    local selected = init
+    for i, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.TextSize = 12
+        optBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        optBtn.Size = UDim2.new(1, 0, 0, 24)
+        optBtn.Position = UDim2.new(0, 0, 0, (i-1)*24)
+        optBtn.BorderSizePixel = 0
+        optBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        optBtn.Text = opt
+        optBtn.Parent = frame
+
+        local oc = Instance.new("UICorner", optBtn)
+        oc.CornerRadius = UDim.new(0, 6)
+
+        optBtn.MouseButton1Click:Connect(function()
+            selected = opt
+            btn.Text = selected
+            frame.Visible = false
+            onChange(selected)
+        end)
+    end
+
+    btn.MouseButton1Click:Connect(function()
+        frame.Visible = not frame.Visible
     end)
 
-    bodyBtn.MouseButton1Click:Connect(function()
-        aimLevel = "Body"
-        bodyBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
-        headBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    end)
+    return btn
 end
 
 -- ── Build UI ─────────────────────────────────────────────────
@@ -534,26 +575,22 @@ makeSlider(148, "FOV Radius", 30, 500, fovRadius, function(v)
     fovRadius = v
     updateFOV()
 end)
-
-rowLabel(182, "Aim Level")
-makeAimLevelButtons(200)
-
-toggleBtn(236, "Sticky Aim: OFF", "Sticky Aim: ON", false, function(on)
-    stickyAim = on
+makeDropdown(182, "Aim Level", {"Head", "Body"}, "Head", function(v)
+    aimLevel = v
 end)
-toggleBtn(270, "Team Check: OFF", "Team Check: ON", false, function(on)
+toggleBtn(240, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
-rowLabel(306, "───────────────────────────────────")
+rowLabel(278, "───────────────────────────────────")
 local hint = Instance.new("TextLabel")
-hint.Text = "Hold V = Lock-On Silent Aim"
+hint.Text = "Hold V = Lock-On Silent Aim   RightShift = Menu"
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120, 120, 120)
 hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1, -20, 0, 14)
-hint.Position = UDim2.new(0, 10, 0, 322)
+hint.Position = UDim2.new(0, 10, 0, 294)
 hint.Parent = mainPanel
 
 -- ── Player Events ─────────────────────────────────────────────
@@ -581,3 +618,4 @@ for _, plr in ipairs(Players:GetPlayers()) do
 end
 
 -- ── Start FOV Update ─────────────────────────────────────────
+RunService.RenderStepped:Connect(updateFOV)
