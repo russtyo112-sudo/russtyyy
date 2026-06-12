@@ -1,4 +1,4 @@
--- XenoExecutor (Lock-On Silent Aim + ESP + Gear Display for The Armory)
+-- XenoExecutor (Lock-On Silent Aim + ESP for The Armory)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -95,27 +95,7 @@ local function createESPFor(plr)
     lbl.Text = plr.DisplayName
     lbl.Visible = false
 
-    -- Gear Boxes (Primary, Armor1, Armor2)
-    local primaryBox = Instance.new("Frame", sg)
-    primaryBox.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-    primaryBox.BorderSizePixel = 0
-    primaryBox.Visible = false
-
-    local armor1Box = Instance.new("Frame", sg)
-    armor1Box.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-    armor1Box.BorderSizePixel = 0
-    armor1Box.Visible = false
-
-    local armor2Box = Instance.new("Frame", sg)
-    armor2Box.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-    armor2Box.BorderSizePixel = 0
-    armor2Box.Visible = false
-
-    espData[plr] = {
-        box = box, top = top, bot = bot, lft = lft, rgt = rgt,
-        hpBg = hpBg, hp = hp, lbl = lbl,
-        primaryBox = primaryBox, armor1Box = armor1Box, armor2Box = armor2Box
-    }
+    espData[plr] = {box = box, top = top, bot = bot, lft = lft, rgt = rgt, hpBg = hpBg, hp = hp, lbl = lbl}
 end
 
 local function getBox(char)
@@ -135,31 +115,6 @@ local function getBox(char)
     end
     if not hit then return nil end
     return mn.X - 4, mn.Y - 4, mx.X + 4, mx.Y + 4
-end
-
-local function getEquippedGear(char)
-    local primary = "None"
-    local armor1 = "None"
-    local armor2 = "None"
-
-    -- Check for primary weapon (assuming it's a Tool or has a specific name)
-    for _, child in ipairs(char:GetChildren()) do
-        if child:IsA("Tool") then
-            primary = child.Name
-        end
-    end
-
-    -- Check for armor (assuming it's in a specific folder or has a tag)
-    -- This is a placeholder; you may need to adjust based on The Armory's actual system.
-    -- Example: If armor is stored in a folder named "Armor", you can check there.
-    local armorFolder = char:FindFirstChild("Armor")
-    if armorFolder then
-        local armorParts = armorFolder:GetChildren()
-        if #armorParts >= 1 then armor1 = armorParts[1].Name end
-        if #armorParts >= 2 then armor2 = armorParts[2].Name end
-    end
-
-    return primary, armor1, armor2
 end
 
 local function runESP()
@@ -190,24 +145,7 @@ local function runESP()
                         d.lbl.Size = UDim2.new(0, w, 0, 14)
                         d.lbl.Visible = true
 
-                        -- Gear Boxes (Right Side)
-                        local primary, armor1, armor2 = getEquippedGear(plr.Character)
-                        d.primaryBox.Position = UDim2.new(0, x2 + 3, 0, y1)
-                        d.primaryBox.Size = UDim2.new(0, 4, 0, h / 3)
-                        d.primaryBox.Visible = true
-                        d.primaryBox.BackgroundColor3 = Color3.fromRGB(255, 200, 200) -- Red for primary
-
-                        d.armor1Box.Position = UDim2.new(0, x2 + 8, 0, y1)
-                        d.armor1Box.Size = UDim2.new(0, 4, 0, h / 3)
-                        d.armor1Box.Visible = true
-                        d.armor1Box.BackgroundColor3 = Color3.fromRGB(200, 200, 255) -- Blue for armor1
-
-                        d.armor2Box.Position = UDim2.new(0, x2 + 13, 0, y1)
-                        d.armor2Box.Size = UDim2.new(0, 4, 0, h / 3)
-                        d.armor2Box.Visible = true
-                        d.armor2Box.BackgroundColor3 = Color3.fromRGB(200, 255, 200) -- Green for armor2
-
-                        -- Locked Target Highlight
+                        -- Locked Target Highlight (Green Box)
                         if lockedTarget and plr.Character:FindFirstChild(lockedTarget.Name) then
                             d.box.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
                             d.box.BackgroundTransparency = 0.55
@@ -218,9 +156,6 @@ local function runESP()
                         if d.box then d.box.Visible = false end
                         if d.hpBg then d.hpBg.Visible = false end
                         if d.lbl then d.lbl.Visible = false end
-                        if d.primaryBox then d.primaryBox.Visible = false end
-                        if d.armor1Box then d.armor1Box.Visible = false end
-                        if d.armor2Box then d.armor2Box.Visible = false end
                     end
                 end
             else
@@ -360,8 +295,8 @@ end)
 local mainPanel = Instance.new("Frame")
 mainPanel.Name = "MainPanel"
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mainPanel.Size = UDim2.new(0, 300, 0, 400)
-mainPanel.Position = UDim2.new(0.5, -150, 0.5, -200)
+mainPanel.Size = UDim2.new(0, 300, 0, 380)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -190)
 mainPanel.Draggable = true
 mainPanel.Active = true
 mainPanel.Visible = true
@@ -547,7 +482,7 @@ local function makeDropdown(y, labelTxt, options, init, onChange)
     lbl.TextSize = 11
     lbl.TextColor3 = Color3.fromRGB(120, 40, 200)
     lbl.BackgroundTransparency = 1
-    lbl.Size = UDim2.new(1, -20, 0, 16)
+    lbl.Size = UDim2.new(0.5, -10, 0, 16)
     lbl.Position = UDim2.new(0, 10, 0, y)
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Text = labelTxt
@@ -557,7 +492,7 @@ local function makeDropdown(y, labelTxt, options, init, onChange)
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 12
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Size = UDim2.new(1, -20, 0, 28)
+    btn.Size = UDim2.new(0.5, -10, 0, 28)
     btn.Position = UDim2.new(0, 10, 0, y + 18)
     btn.BorderSizePixel = 0
     btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
@@ -570,7 +505,7 @@ local function makeDropdown(y, labelTxt, options, init, onChange)
     local frame = Instance.new("Frame")
     frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     frame.BorderSizePixel = 0
-    frame.Size = UDim2.new(1, -20, 0, 0)
+    frame.Size = UDim2.new(0.5, -10, 0, 0)
     frame.Position = UDim2.new(0, 10, 0, y + 48)
     frame.Visible = false
     frame.Parent = mainPanel
