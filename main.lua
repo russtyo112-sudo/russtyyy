@@ -262,6 +262,8 @@ local function runAimbot()
 end
 
 -- ── Input Handling ────────────────────────────────────────────
+local menuOpen = true
+
 UIS.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.KeyCode == Enum.KeyCode.V then
@@ -275,8 +277,9 @@ UIS.InputBegan:Connect(function(inp, gp)
             end)
         end
     elseif inp.KeyCode == Enum.KeyCode.RightShift then
-        mainPanel.Visible = not mainPanel.Visible
-        reopenBtn.Visible = not mainPanel.Visible
+        menuOpen = not menuOpen
+        mainPanel.Visible = menuOpen
+        reopenBtn.Visible = not menuOpen
     end
 end)
 
@@ -338,6 +341,7 @@ closeBtn.Size = UDim2.new(0, 32, 1, 0)
 closeBtn.Position = UDim2.new(1, -32, 0, 0)
 closeBtn.Parent = titleBar
 closeBtn.MouseButton1Click:Connect(function()
+    menuOpen = false
     mainPanel.Visible = false
     reopenBtn.Visible = true
 end)
@@ -359,6 +363,7 @@ local rc = Instance.new("UICorner", reopenBtn)
 rc.CornerRadius = UDim.new(0, 6)
 
 reopenBtn.MouseButton1Click:Connect(function()
+    menuOpen = true
     mainPanel.Visible = true
     reopenBtn.Visible = false
 end)
@@ -574,11 +579,11 @@ end)
 makeDropdown(182, "Aim Level", {"Head", "Body"}, "Head", function(v)
     aimLevel = v
 end)
-toggleBtn(216, "Team Check: OFF", "Team Check: ON", false, function(on)
+toggleBtn(240, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
-rowLabel(254, "───────────────────────────────────")
+rowLabel(278, "───────────────────────────────────")
 local hint = Instance.new("TextLabel")
 hint.Text = "Hold V = Lock-On Silent Aim   RightShift = Menu"
 hint.Font = Enum.Font.Gotham
@@ -586,7 +591,7 @@ hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120, 120, 120)
 hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1, -20, 0, 14)
-hint.Position = UDim2.new(0, 10, 0, 270)
+hint.Position = UDim2.new(0, 10, 0, 294)
 hint.Parent = mainPanel
 
 -- ── Player Events ─────────────────────────────────────────────
