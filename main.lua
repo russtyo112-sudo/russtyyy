@@ -1,4 +1,4 @@
--- XenoExecutor (Lock-On Silent Aim + ESP + Loot ESP for The Armory)
+-- XenoExecutor (Lock-On Silent Aim + ESP + Gear Display for The Armory)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -17,7 +17,6 @@ local espLoop = nil
 local aimbotConnection = nil
 local lockedTarget = nil
 local aimLevel = "Head" -- Default to headshot
-local lootEspEnabled = false
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -29,7 +28,6 @@ sg.Parent = lpGui
 
 -- ── ESP ───────────────────────────────────────────────────────
 local espData = {}
-local lootMarkers = {}
 
 local function removeESP(plr)
     if espData[plr] then
@@ -73,6 +71,7 @@ local function createESPFor(plr)
     rgt.Size = UDim2.new(0, 1, 1, 0)
     rgt.Position = UDim2.new(1, -1, 0, 0)
 
+    -- Health Bar
     local hpBg = Instance.new("Frame", sg)
     hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     hpBg.BorderSizePixel = 0
@@ -85,6 +84,7 @@ local function createESPFor(plr)
     hp.Position = UDim2.new(0, 0, 1, 0)
     hp.Size = UDim2.new(1, 0, 1, 0)
 
+    -- Name Label
     local lbl = Instance.new("TextLabel", sg)
     lbl.BackgroundTransparency = 1
     lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -95,7 +95,27 @@ local function createESPFor(plr)
     lbl.Text = plr.DisplayName
     lbl.Visible = false
 
-    espData[plr] = {box = box, top = top, bot = bot, lft = lft, rgt = rgt, hpBg = hpBg, hp = hp, lbl = lbl}
+    -- Gear Boxes (Primary, Armor1, Armor2)
+    local primaryBox = Instance.new("Frame", sg)
+    primaryBox.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+    primaryBox.BorderSizePixel = 0
+    primaryBox.Visible = false
+
+    local armor1Box = Instance.new("Frame", sg)
+    armor1Box.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+    armor1Box.BorderSizePixel = 0
+    armor1Box.Visible = false
+
+    local armor2Box = Instance.new("Frame", sg)
+    armor2Box.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+    armor2Box.BorderSizePixel = 0
+    armor2Box.Visible = false
+
+    espData[plr] = {
+        box = box, top = top, bot = bot, lft = lft, rgt = rgt,
+        hpBg = hpBg, hp = hp, lbl = lbl,
+        primaryBox = primaryBox, armor1Box = armor1Box, armor2Box = armor2Box
+    }
 end
 
 local function getBox(char)
@@ -117,6 +137,31 @@ local function getBox(char)
     return mn.X - 4, mn.Y - 4, mx.X + 4, mx.Y + 4
 end
 
+local function getEquippedGear(char)
+    local primary = "None"
+    local armor1 = "None"
+    local armor2 = "None"
+
+    -- Check for primary weapon (assuming it's a Tool or has a specific name)
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Tool") then
+            primary = child.Name
+        end
+    end
+
+    -- Check for armor (assuming it's in a specific folder or has a tag)
+    -- This is a placeholder; you may need to adjust based on The Armory's actual system.
+    -- Example: If armor is stored in a folder named "Armor", you can check there.
+    local armorFolder = char:FindFirstChild("Armor")
+    if armorFolder then
+        local armorParts = armorFolder:GetChildren()
+        if #armorParts >= 1 then armor1 = armorParts[1].Name end
+        if #armorParts >= 2 then armor2 = armorParts[2].Name end
+    end
+
+    return primary, armor1, armor2
+end
+
 local function runESP()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= lp and plr.Character then
@@ -128,17 +173,41 @@ local function runESP()
                     local x1, y1, x2, y2 = getBox(plr.Character)
                     if x1 then
                         local w, h = x2 - x1, y2 - y1
+
+                        -- Box
                         d.box.Position = UDim2.new(0, x1, 0, y1)
                         d.box.Size = UDim2.new(0, w, 0, h)
                         d.box.Visible = true
+
+                        -- Health Bar
                         d.hpBg.Position = UDim2.new(0, x1 - 7, 0, y1)
                         d.hpBg.Size = UDim2.new(0, 4, 0, h)
                         d.hpBg.Visible = true
                         d.hp.Size = UDim2.new(1, 0, hum.Health / hum.MaxHealth, 0)
+
+                        -- Name Label
                         d.lbl.Position = UDim2.new(0, x1, 0, y1 - 15)
                         d.lbl.Size = UDim2.new(0, w, 0, 14)
                         d.lbl.Visible = true
-                        -- If this is the locked target, fill the box with green at 45% opacity
+
+                        -- Gear Boxes (Right Side)
+                        local primary, armor1, armor2 = getEquippedGear(plr.Character)
+                        d.primaryBox.Position = UDim2.new(0, x2 + 3, 0, y1)
+                        d.primaryBox.Size = UDim2.new(0, 4, 0, h / 3)
+                        d.primaryBox.Visible = true
+                        d.primaryBox.BackgroundColor3 = Color3.fromRGB(255, 200, 200) -- Red for primary
+
+                        d.armor1Box.Position = UDim2.new(0, x2 + 8, 0, y1)
+                        d.armor1Box.Size = UDim2.new(0, 4, 0, h / 3)
+                        d.armor1Box.Visible = true
+                        d.armor1Box.BackgroundColor3 = Color3.fromRGB(200, 200, 255) -- Blue for armor1
+
+                        d.armor2Box.Position = UDim2.new(0, x2 + 13, 0, y1)
+                        d.armor2Box.Size = UDim2.new(0, 4, 0, h / 3)
+                        d.armor2Box.Visible = true
+                        d.armor2Box.BackgroundColor3 = Color3.fromRGB(200, 255, 200) -- Green for armor2
+
+                        -- Locked Target Highlight
                         if lockedTarget and plr.Character:FindFirstChild(lockedTarget.Name) then
                             d.box.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
                             d.box.BackgroundTransparency = 0.55
@@ -149,62 +218,13 @@ local function runESP()
                         if d.box then d.box.Visible = false end
                         if d.hpBg then d.hpBg.Visible = false end
                         if d.lbl then d.lbl.Visible = false end
+                        if d.primaryBox then d.primaryBox.Visible = false end
+                        if d.armor1Box then d.armor1Box.Visible = false end
+                        if d.armor2Box then d.armor2Box.Visible = false end
                     end
                 end
             else
                 removeESP(plr)
-            end
-        end
-    end
-end
-
--- ── Loot ESP ──────────────────────────────────────────────────
-local function clearLootMarkers()
-    for _, marker in pairs(lootMarkers) do
-        if marker and marker:IsA("Instance") then
-            marker:Destroy()
-        end
-    end
-    lootMarkers = {}
-end
-
-local function checkLoot(item)
-    local name = item.Name:lower()
-    if name:find("mythic") then
-        return Color3.fromRGB(255, 0, 0)
-    elseif name:find("transcendent") then
-        return Color3.fromRGB(0, 0, 255)
-    elseif name:find("divinity") then
-        return Color3.fromRGB(255, 255, 255)
-    end
-    return nil
-end
-
-local function runLootESP()
-    clearLootMarkers()
-    if not lootEspEnabled then return end
-    for _, item in ipairs(workspace:GetDescendants()) do
-        if item:IsA("BasePart") and item.Name:lower():match("mythic|transcendent|divinity") then
-            local color = checkLoot(item)
-            if color then
-                local marker = Instance.new("BillboardGui")
-                marker.Adornee = item
-                marker.Size = UDim2.new(2, 0, 2, 0)
-                marker.StudsOffset = Vector3.new(0, 2, 0)
-                marker.AlwaysOnTop = true
-                marker.Parent = sg
-
-                local frame = Instance.new("Frame", marker)
-                frame.BackgroundColor3 = color
-                frame.BorderSizePixel = 0
-                frame.Size = UDim2.new(0, 8, 0, 8)
-                frame.AnchorPoint = Vector2.new(0.5, 0.5)
-                frame.Position = UDim2.new(0.5, 0, 0.5, 0)
-
-                local corner = Instance.new("UICorner", frame)
-                corner.CornerRadius = UDim.new(1, 0)
-
-                table.insert(lootMarkers, marker)
             end
         end
     end
@@ -236,19 +256,21 @@ local function getClosestPlayer()
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= lp and plr.Character then
-            local skip = teamCheck and plr.Team == lp.Team
-            if not skip then
-                local hum = plr.Character:FindFirstChild("Humanoid")
-                if hum and hum.Health > 0 then
-                    local head = plr.Character:FindFirstChild(targetPart) or plr.Character:FindFirstChild("Head")
-                    if head then
-                        local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
-                        if onScreen then
-                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                            if dist < fovRadius and dist < closestDist then
-                                closestDist = dist
-                                closest = head
-                            end
+            -- Team Check: Skip if teamCheck is on and player is on the same team
+            if teamCheck and plr.Team and lp.Team and plr.Team == lp.Team then
+                continue
+            end
+
+            local hum = plr.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 then
+                local head = plr.Character:FindFirstChild(targetPart) or plr.Character:FindFirstChild("Head")
+                if head then
+                    local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
+                    if onScreen then
+                        local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                        if dist < fovRadius and dist < closestDist then
+                            closestDist = dist
+                            closest = head
                         end
                     end
                 end
@@ -262,6 +284,12 @@ local function isTargetValid(target)
     if not target or not target.Parent then return false end
     local plr = Players:GetPlayerFromCharacter(target.Parent)
     if not plr or plr == lp then return false end
+
+    -- Team Check: Skip if teamCheck is on and player is on the same team
+    if teamCheck and plr.Team and lp.Team and plr.Team == lp.Team then
+        return false
+    end
+
     local hum = target.Parent:FindFirstChild("Humanoid")
     if not hum or hum.Health <= 0 then return false end
     local screenPos, onScreen = cam:WorldToViewportPoint(target.Position)
@@ -332,8 +360,8 @@ end)
 local mainPanel = Instance.new("Frame")
 mainPanel.Name = "MainPanel"
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mainPanel.Size = UDim2.new(0, 300, 0, 450)
-mainPanel.Position = UDim2.new(0.5, -150, 0.5, -225)
+mainPanel.Size = UDim2.new(0, 300, 0, 400)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -200)
 mainPanel.Draggable = true
 mainPanel.Active = true
 mainPanel.Visible = true
@@ -600,37 +628,22 @@ toggleBtn(56, "ESP: OFF", "ESP: ON", false, function(on)
     end
 end)
 
-rowLabel(96, "── LOOT ESP ─────────────────────────")
-toggleBtn(114, "Loot ESP: OFF", "Loot ESP: ON", false, function(on)
-    lootEspEnabled = on
-    if on then
-        runLootESP()
-        lootLoop = RunService.Heartbeat:Connect(runLootESP)
-    else
-        clearLootMarkers()
-        if lootLoop then
-            lootLoop:Disconnect()
-            lootLoop = nil
-        end
-    end
-end)
-
-rowLabel(154, "── AIMBOT ───────────────────────────")
-makeSlider(172, "Smoothness", 1, 100, 30, function(v)
+rowLabel(96, "── AIMBOT ───────────────────────────")
+makeSlider(114, "Smoothness", 1, 100, 30, function(v)
     smoothness = v / 100
 end)
-makeSlider(206, "FOV Radius", 30, 500, fovRadius, function(v)
+makeSlider(148, "FOV Radius", 30, 500, fovRadius, function(v)
     fovRadius = v
     updateFOV()
 end)
-makeDropdown(240, "Aim Level", {"Head", "Body"}, "Head", function(v)
+makeDropdown(182, "Aim Level", {"Head", "Body"}, "Head", function(v)
     aimLevel = v
 end)
-toggleBtn(274, "Team Check: OFF", "Team Check: ON", false, function(on)
+toggleBtn(216, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
-rowLabel(312, "───────────────────────────────────")
+rowLabel(254, "───────────────────────────────────")
 local hint = Instance.new("TextLabel")
 hint.Text = "Hold V = Lock-On Silent Aim   RightShift = Menu"
 hint.Font = Enum.Font.Gotham
@@ -638,7 +651,7 @@ hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120, 120, 120)
 hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1, -20, 0, 14)
-hint.Position = UDim2.new(0, 10, 0, 328)
+hint.Position = UDim2.new(0, 10, 0, 270)
 hint.Parent = mainPanel
 
 -- ── Player Events ─────────────────────────────────────────────
