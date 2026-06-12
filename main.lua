@@ -17,6 +17,7 @@ local espLoop = nil
 local aimbotConnection = nil
 local lockedTarget = nil
 local aimLevel = "Head" -- Default to headshot
+local menuOpen = true
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -146,7 +147,7 @@ local function runESP()
                         d.lbl.Visible = true
 
                         -- Locked Target Highlight (Green Box)
-                        if lockedTarget and plr.Character:FindFirstChild(lockedTarget.Name) then
+                        if lockedTarget and lockedTarget.Parent == plr.Character then
                             d.box.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
                             d.box.BackgroundTransparency = 0.55
                         else
@@ -262,8 +263,6 @@ local function runAimbot()
 end
 
 -- ── Input Handling ────────────────────────────────────────────
-local menuOpen = true
-
 UIS.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.KeyCode == Enum.KeyCode.V then
@@ -597,7 +596,7 @@ hint.Parent = mainPanel
 -- ── Player Events ─────────────────────────────────────────────
 Players.PlayerRemoving:Connect(function(plr)
     removeESP(plr)
-    if lockedTarget and Players:GetPlayerFromCharacter(lockedTarget.Parent) == plr then
+    if lockedTarget and lockedTarget.Parent == plr.Character then
         lockedTarget = nil
     end
 end)
