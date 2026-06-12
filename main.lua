@@ -1,4 +1,4 @@
--- XenoExecutor (Lock-On Silent Aim + ESP + Offsets for The Armory)
+-- XenoExecutor (Lock-On Silent Aim + ESP + Loot ESP for The Armory)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -15,9 +15,9 @@ local targetPart = "Head"
 local teamCheck = false
 local espLoop = nil
 local aimbotConnection = nil
-local xOffset = 0
-local yOffset = 0
-local lockedTarget = nil  -- NEW: Stores the currently locked target
+local lockedTarget = nil
+local aimLevel = "Head" -- Default to headshot
+local lootEspEnabled = false
 
 -- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
@@ -29,6 +29,7 @@ sg.Parent = lpGui
 
 -- ── ESP ───────────────────────────────────────────────────────
 local espData = {}
+local lootMarkers = {}
 
 local function removeESP(plr)
     if espData[plr] then
@@ -137,6 +138,13 @@ local function runESP()
                         d.lbl.Position = UDim2.new(0, x1, 0, y1 - 15)
                         d.lbl.Size = UDim2.new(0, w, 0, 14)
                         d.lbl.Visible = true
+                        -- If this is the locked target, fill the box with green at 45% opacity
+                        if lockedTarget and plr.Character:FindFirstChild(lockedTarget.Name) then
+                            d.box.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                            d.box.BackgroundTransparency = 0.55
+                        else
+                            d.box.BackgroundTransparency = 1
+                        end
                     else
                         if d.box then d.box.Visible = false end
                         if d.hpBg then d.hpBg.Visible = false end
@@ -150,11 +158,63 @@ local function runESP()
     end
 end
 
+-- ── Loot ESP ──────────────────────────────────────────────────
+local function clearLootMarkers()
+    for _, marker in pairs(lootMarkers) do
+        if marker and marker:IsA("Instance") then
+            marker:Destroy()
+        end
+    end
+    lootMarkers = {}
+end
+
+local function checkLoot(item)
+    local name = item.Name:lower()
+    if name:find("mythic") then
+        return Color3.fromRGB(255, 0, 0)
+    elseif name:find("transcendent") then
+        return Color3.fromRGB(0, 0, 255)
+    elseif name:find("divinity") then
+        return Color3.fromRGB(255, 255, 255)
+    end
+    return nil
+end
+
+local function runLootESP()
+    clearLootMarkers()
+    if not lootEspEnabled then return end
+    for _, item in ipairs(workspace:GetDescendants()) do
+        if item:IsA("BasePart") and item.Name:lower():match("mythic|transcendent|divinity") then
+            local color = checkLoot(item)
+            if color then
+                local marker = Instance.new("BillboardGui")
+                marker.Adornee = item
+                marker.Size = UDim2.new(2, 0, 2, 0)
+                marker.StudsOffset = Vector3.new(0, 2, 0)
+                marker.AlwaysOnTop = true
+                marker.Parent = sg
+
+                local frame = Instance.new("Frame", marker)
+                frame.BackgroundColor3 = color
+                frame.BorderSizePixel = 0
+                frame.Size = UDim2.new(0, 8, 0, 8)
+                frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+                local corner = Instance.new("UICorner", frame)
+                corner.CornerRadius = UDim.new(1, 0)
+
+                table.insert(lootMarkers, marker)
+            end
+        end
+    end
+end
+
 -- ── FOV Circle ────────────────────────────────────────────────
 local fovFrame = Instance.new("Frame", sg)
 fovFrame.BackgroundTransparency = 1
 fovFrame.BorderSizePixel = 0
-fovFrame.Visible = false
+fovFrame.Visible = true
 
 local fovCorner = Instance.new("UICorner", fovFrame)
 fovCorner.CornerRadius = UDim.new(1, 0)
@@ -216,7 +276,8 @@ local function silentAim(target)
     local mouse = lp:GetMouse()
     local screenPos, onScreen = cam:WorldToViewportPoint(target.Position)
     if onScreen then
-        screenPos = Vector2.new(screenPos.X + xOffset, screenPos.Y + yOffset)
+        local yOffset = aimLevel == "Head" and -62 or -4
+        screenPos = Vector2.new(screenPos.X, screenPos.Y + yOffset)
         local currentPos = Vector2.new(mouse.X, mouse.Y)
         local delta = (screenPos - currentPos) * smoothness
         mousemoverel(delta.X, delta.Y)
@@ -224,13 +285,10 @@ local function silentAim(target)
 end
 
 local function runAimbot()
-    -- If we have a locked target and it's still valid, keep using it
     if lockedTarget and isTargetValid(lockedTarget) then
         silentAim(lockedTarget)
         return
     end
-
-    -- Otherwise, find a new target
     local target = getClosestPlayer()
     if target then
         lockedTarget = target
@@ -245,8 +303,6 @@ UIS.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = true
-        fovFrame.Visible = true
-        lockedTarget = nil  -- Reset lock when starting a new aim session
         if not aimbotConnection then
             aimbotConnection = RunService.RenderStepped:Connect(function()
                 if aimbotEnabled then
@@ -264,8 +320,7 @@ end)
 UIS.InputEnded:Connect(function(inp)
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = false
-        fovFrame.Visible = false
-        lockedTarget = nil  -- Clear lock when releasing V
+        lockedTarget = nil
         if aimbotConnection then
             aimbotConnection:Disconnect()
             aimbotConnection = nil
@@ -277,8 +332,8 @@ end)
 local mainPanel = Instance.new("Frame")
 mainPanel.Name = "MainPanel"
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mainPanel.Size = UDim2.new(0, 300, 0, 400)
-mainPanel.Position = UDim2.new(0.5, -150, 0.5, -200)
+mainPanel.Size = UDim2.new(0, 300, 0, 450)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -225)
 mainPanel.Draggable = true
 mainPanel.Active = true
 mainPanel.Visible = true
@@ -458,6 +513,74 @@ local function makeSlider(y, labelTxt, mn, mx, init, onChange)
     end)
 end
 
+local function makeDropdown(y, labelTxt, options, init, onChange)
+    local lbl = Instance.new("TextLabel")
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 11
+    lbl.TextColor3 = Color3.fromRGB(120, 40, 200)
+    lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(1, -20, 0, 16)
+    lbl.Position = UDim2.new(0, 10, 0, y)
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Text = labelTxt
+    lbl.Parent = mainPanel
+
+    local btn = Instance.new("TextButton")
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 12
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Size = UDim2.new(1, -20, 0, 28)
+    btn.Position = UDim2.new(0, 10, 0, y + 18)
+    btn.BorderSizePixel = 0
+    btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    btn.Text = init
+    btn.Parent = mainPanel
+
+    local bc = Instance.new("UICorner", btn)
+    bc.CornerRadius = UDim.new(0, 6)
+
+    local frame = Instance.new("Frame")
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    frame.Size = UDim2.new(1, -20, 0, 0)
+    frame.Position = UDim2.new(0, 10, 0, y + 48)
+    frame.Visible = false
+    frame.Parent = mainPanel
+
+    local fc = Instance.new("UICorner", frame)
+    fc.CornerRadius = UDim.new(0, 6)
+
+    local selected = init
+    for i, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.TextSize = 12
+        optBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        optBtn.Size = UDim2.new(1, 0, 0, 24)
+        optBtn.Position = UDim2.new(0, 0, 0, (i-1)*24)
+        optBtn.BorderSizePixel = 0
+        optBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        optBtn.Text = opt
+        optBtn.Parent = frame
+
+        local oc = Instance.new("UICorner", optBtn)
+        oc.CornerRadius = UDim.new(0, 6)
+
+        optBtn.MouseButton1Click:Connect(function()
+            selected = opt
+            btn.Text = selected
+            frame.Visible = false
+            onChange(selected)
+        end)
+    end
+
+    btn.MouseButton1Click:Connect(function()
+        frame.Visible = not frame.Visible
+    end)
+
+    return btn
+end
+
 -- ── Build UI ─────────────────────────────────────────────────
 rowLabel(38, "── ESP ──────────────────────────────")
 toggleBtn(56, "ESP: OFF", "ESP: ON", false, function(on)
@@ -477,25 +600,37 @@ toggleBtn(56, "ESP: OFF", "ESP: ON", false, function(on)
     end
 end)
 
-rowLabel(96, "── AIMBOT ───────────────────────────")
-makeSlider(114, "Smoothness", 1, 100, 30, function(v)
+rowLabel(96, "── LOOT ESP ─────────────────────────")
+toggleBtn(114, "Loot ESP: OFF", "Loot ESP: ON", false, function(on)
+    lootEspEnabled = on
+    if on then
+        runLootESP()
+        lootLoop = RunService.Heartbeat:Connect(runLootESP)
+    else
+        clearLootMarkers()
+        if lootLoop then
+            lootLoop:Disconnect()
+            lootLoop = nil
+        end
+    end
+end)
+
+rowLabel(154, "── AIMBOT ───────────────────────────")
+makeSlider(172, "Smoothness", 1, 100, 30, function(v)
     smoothness = v / 100
 end)
-makeSlider(148, "FOV Radius", 30, 500, fovRadius, function(v)
+makeSlider(206, "FOV Radius", 30, 500, fovRadius, function(v)
     fovRadius = v
+    updateFOV()
 end)
--- Offset Sliders
-makeSlider(182, "X Offset", -100, 100, xOffset, function(v)
-    xOffset = v
+makeDropdown(240, "Aim Level", {"Head", "Body"}, "Head", function(v)
+    aimLevel = v
 end)
-makeSlider(216, "Y Offset", -100, 100, yOffset, function(v)
-    yOffset = v
-end)
-toggleBtn(250, "Team Check: OFF", "Team Check: ON", false, function(on)
+toggleBtn(274, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
-rowLabel(286, "───────────────────────────────────")
+rowLabel(312, "───────────────────────────────────")
 local hint = Instance.new("TextLabel")
 hint.Text = "Hold V = Lock-On Silent Aim   RightShift = Menu"
 hint.Font = Enum.Font.Gotham
@@ -503,7 +638,7 @@ hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120, 120, 120)
 hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1, -20, 0, 14)
-hint.Position = UDim2.new(0, 10, 0, 302)
+hint.Position = UDim2.new(0, 10, 0, 328)
 hint.Parent = mainPanel
 
 -- ── Player Events ─────────────────────────────────────────────
@@ -529,3 +664,6 @@ for _, plr in ipairs(Players:GetPlayers()) do
         end)
     end
 end
+
+-- ── Start FOV Update ─────────────────────────────────────────
+RunService.RenderStepped:Connect(updateFOV)
