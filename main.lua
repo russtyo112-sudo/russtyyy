@@ -6,7 +6,7 @@ local cam = workspace.CurrentCamera
 local lp = Players.LocalPlayer
 local lpGui = lp:WaitForChild("PlayerGui")
 
--- State
+-- ── State ─────────────────────────────────────────────────────
 local espEnabled = false
 local aimbotEnabled = false
 local smoothness = 0.3
@@ -17,9 +17,9 @@ local stickyAim = false
 local espLoop = nil
 local aimbotConnection = nil
 local lockedTarget = nil
-local aimLevel = "Head"
+local aimLevel = "Head" -- Default to headshot
 
--- ScreenGui
+-- ── ScreenGui ─────────────────────────────────────────────────
 local sg = Instance.new("ScreenGui")
 sg.Name = "XenoExec"
 sg.ResetOnSpawn = false
@@ -27,7 +27,7 @@ sg.IgnoreGuiInset = true
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent = lpGui
 
--- ESP
+-- ── ESP ───────────────────────────────────────────────────────
 local espData = {}
 
 local function removeESP(plr)
@@ -72,6 +72,7 @@ local function createESPFor(plr)
     rgt.Size = UDim2.new(0, 1, 1, 0)
     rgt.Position = UDim2.new(1, -1, 0, 0)
 
+    -- Health Bar
     local hpBg = Instance.new("Frame", sg)
     hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     hpBg.BorderSizePixel = 0
@@ -84,6 +85,7 @@ local function createESPFor(plr)
     hp.Position = UDim2.new(0, 0, 1, 0)
     hp.Size = UDim2.new(1, 0, 1, 0)
 
+    -- Name Label
     local lbl = Instance.new("TextLabel", sg)
     lbl.BackgroundTransparency = 1
     lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -127,29 +129,34 @@ local function runESP()
                     local x1, y1, x2, y2 = getBox(plr.Character)
                     if x1 then
                         local w, h = x2 - x1, y2 - y1
+
+                        -- Box
                         d.box.Position = UDim2.new(0, x1, 0, y1)
                         d.box.Size = UDim2.new(0, w, 0, h)
                         d.box.Visible = true
 
+                        -- Health Bar
+                        d.hpBg.Position = UDim2.new(0, x1 - 7, 0, y1)
+                        d.hpBg.Size = UDim2.new(0, 4, 0, h)
+                        d.hpBg.Visible = true
+                        d.hp.Size = UDim2.new(1, 0, hum.Health / hum.MaxHealth, 0)
+
+                        -- Name Label
+                        d.lbl.Position = UDim2.new(0, x1, 0, y1 - 15)
+                        d.lbl.Size = UDim2.new(0, w, 0, 14)
+                        d.lbl.Visible = true
+
+                        -- Locked Target Highlight (Green Box)
                         if lockedTarget and lockedTarget.Parent == plr.Character then
                             d.box.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
                             d.box.BackgroundTransparency = 0.55
                         else
                             d.box.BackgroundTransparency = 1
                         end
-
-                        d.hpBg.Position = UDim2.new(0, x1 - 7, 0, y1)
-                        d.hpBg.Size = UDim2.new(0, 4, 0, h)
-                        d.hpBg.Visible = true
-                        d.hp.Size = UDim2.new(1, 0, hum.Health / hum.MaxHealth, 0)
-
-                        d.lbl.Position = UDim2.new(0, x1, 0, y1 - 15)
-                        d.lbl.Size = UDim2.new(0, w, 0, 14)
-                        d.lbl.Visible = true
                     else
-                        d.box.Visible = false
-                        d.hpBg.Visible = false
-                        d.lbl.Visible = false
+                        if d.box then d.box.Visible = false end
+                        if d.hpBg then d.hpBg.Visible = false end
+                        if d.lbl then d.lbl.Visible = false end
                     end
                 end
             else
@@ -159,7 +166,7 @@ local function runESP()
     end
 end
 
--- FOV Circle
+-- ── FOV Circle ────────────────────────────────────────────────
 local fovFrame = Instance.new("Frame", sg)
 fovFrame.BackgroundTransparency = 1
 fovFrame.BorderSizePixel = 0
@@ -178,13 +185,14 @@ local function updateFOV()
     fovFrame.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
 end
 
--- Aimbot
+-- ── Silent Aim (Lock-On) ─────────────────────────────────────
 local function getClosestPlayer()
     local closest, closestDist = nil, math.huge
     local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= lp and plr.Character then
+            -- Team Check: Skip if teamCheck is on and player is on the same team
             if teamCheck and plr.Team and lp.Team and plr.Team == lp.Team then
                 continue
             end
@@ -213,14 +221,18 @@ local function isTargetValid(target)
     local plr = Players:GetPlayerFromCharacter(target.Parent)
     if not plr or plr == lp then return false end
 
+    -- Team Check: Skip if teamCheck is on and player is on the same team
     if teamCheck and plr.Team and lp.Team and plr.Team == lp.Team then
         return false
     end
 
     local hum = target.Parent:FindFirstChild("Humanoid")
     if not hum or hum.Health <= 0 then return false end
-
-    return true
+    local screenPos, onScreen = cam:WorldToViewportPoint(target.Position)
+    if not onScreen then return false end
+    local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+    return dist < fovRadius
 end
 
 local function silentAim(target)
@@ -231,21 +243,25 @@ local function silentAim(target)
         local yOffset = aimLevel == "Head" and -62 or -4
         screenPos = Vector2.new(screenPos.X, screenPos.Y + yOffset)
         local currentPos = Vector2.new(mouse.X, mouse.Y)
-        local delta = (screenPos - currentPos)
+        local delta = (screenPos - currentPos) * smoothness
         if stickyAim then
+            -- Sticky Aim: Force mouse to stay on target
             mousemoverel(delta.X, delta.Y)
         else
-            mousemoverel(delta.X * smoothness, delta.Y * smoothness)
+            -- Normal Aim: Allow mouse movement
+            mousemoverel(delta.X, delta.Y)
         end
     end
 end
 
 local function runAimbot()
     if stickyAim and lockedTarget and isTargetValid(lockedTarget) then
+        -- Sticky Aim: Keep locked on the same target
         silentAim(lockedTarget)
         return
     end
 
+    -- Normal Aim: Find new target if not sticky or no locked target
     local target = getClosestPlayer()
     if target then
         lockedTarget = target
@@ -255,19 +271,22 @@ local function runAimbot()
     end
 end
 
--- Input Handling
+-- ── Input Handling ────────────────────────────────────────────
 UIS.InputBegan:Connect(function(inp, gp)
     if gp then return end
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = true
         if not aimbotConnection then
-            aimbotConnection = RunService.RenderStepped:Connect(runAimbot)
+            aimbotConnection = RunService.RenderStepped:Connect(function()
+                if aimbotEnabled then
+                    updateFOV()
+                    runAimbot()
+                end
+            end)
         end
+        -- Reset locked target when starting a new aim session (unless Sticky Aim is on)
         if not stickyAim then
             lockedTarget = nil
-        end
-        if not espLoop then
-            espLoop = RunService.Heartbeat:Connect(runESP)
         end
     end
 end)
@@ -283,12 +302,12 @@ UIS.InputEnded:Connect(function(inp)
     end
 end)
 
--- Main Panel
+-- ── Main Panel ────────────────────────────────────────────────
 local mainPanel = Instance.new("Frame")
 mainPanel.Name = "MainPanel"
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-mainPanel.Size = UDim2.new(0, 300, 0, 350)
-mainPanel.Position = UDim2.new(0.5, -150, 0.5, -175)
+mainPanel.Size = UDim2.new(0, 300, 0, 400)
+mainPanel.Position = UDim2.new(0.5, -150, 0.5, -200)
 mainPanel.Draggable = true
 mainPanel.Active = true
 mainPanel.Visible = true
@@ -319,7 +338,21 @@ titleLbl.Size = UDim2.new(1, -40, 1, 0)
 titleLbl.TextXAlignment = Enum.TextXAlignment.Left
 titleLbl.Parent = titleBar
 
--- UI Helpers
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Text = "✕"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.BackgroundTransparency = 1
+closeBtn.Size = UDim2.new(0, 32, 1, 0)
+closeBtn.Position = UDim2.new(1, -32, 0, 0)
+closeBtn.Parent = titleBar
+closeBtn.MouseButton1Click:Connect(function()
+    mainPanel.Visible = false
+end)
+
+-- ── UI Helpers ────────────────────────────────────────────────
 local function rowLabel(y, txt)
     local l = Instance.new("TextLabel")
     l.Text = txt
@@ -437,10 +470,11 @@ local function makeAimLevelButtons(y)
     headBtn.Font = Enum.Font.GothamBold
     headBtn.TextSize = 12
     headBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    headBtn.Text = "HEAD"
-    headBtn.Size = UDim2.new(0.5, -14, 0, 30)
+    headBtn.Size = UDim2.new(0.45, -10, 0, 28)
     headBtn.Position = UDim2.new(0, 10, 0, y)
     headBtn.BorderSizePixel = 0
+    headBtn.BackgroundColor3 = aimLevel == "Head" and Color3.fromRGB(120, 40, 200) or Color3.fromRGB(70, 70, 70)
+    headBtn.Text = "Head"
     headBtn.Parent = mainPanel
 
     local hc = Instance.new("UICorner", headBtn)
@@ -450,35 +484,30 @@ local function makeAimLevelButtons(y)
     bodyBtn.Font = Enum.Font.GothamBold
     bodyBtn.TextSize = 12
     bodyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    bodyBtn.Text = "BODY"
-    bodyBtn.Size = UDim2.new(0.5, -14, 0, 30)
-    bodyBtn.Position = UDim2.new(0.5, 4, 0, y)
+    bodyBtn.Size = UDim2.new(0.45, -10, 0, 28)
+    bodyBtn.Position = UDim2.new(0.5, 5, 0, y)
     bodyBtn.BorderSizePixel = 0
+    bodyBtn.BackgroundColor3 = aimLevel == "Body" and Color3.fromRGB(120, 40, 200) or Color3.fromRGB(70, 70, 70)
+    bodyBtn.Text = "Body"
     bodyBtn.Parent = mainPanel
 
     local bc = Instance.new("UICorner", bodyBtn)
     bc.CornerRadius = UDim.new(0, 6)
 
-    local function refresh()
-        headBtn.BackgroundColor3 = (aimLevel == "Head") and Color3.fromRGB(120, 40, 200) or Color3.fromRGB(70, 70, 70)
-        bodyBtn.BackgroundColor3 = (aimLevel == "Body") and Color3.fromRGB(120, 40, 200) or Color3.fromRGB(70, 70, 70)
-    end
-    refresh()
-
     headBtn.MouseButton1Click:Connect(function()
         aimLevel = "Head"
-        targetPart = "Head"
-        refresh()
+        headBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+        bodyBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
     end)
 
     bodyBtn.MouseButton1Click:Connect(function()
         aimLevel = "Body"
-        targetPart = "HumanoidRootPart"
-        refresh()
+        bodyBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 200)
+        headBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
     end)
 end
 
--- Build UI
+-- ── Build UI ─────────────────────────────────────────────────
 rowLabel(38, "── ESP ──────────────────────────────")
 toggleBtn(56, "ESP: OFF", "ESP: ON", false, function(on)
     espEnabled = on
@@ -509,18 +538,47 @@ end)
 rowLabel(182, "Aim Level")
 makeAimLevelButtons(200)
 
-toggleBtn(240, "Sticky Aim: OFF", "Sticky Aim: ON", false, function(on)
+toggleBtn(236, "Sticky Aim: OFF", "Sticky Aim: ON", false, function(on)
     stickyAim = on
 end)
-toggleBtn(274, "Team Check: OFF", "Team Check: ON", false, function(on)
+toggleBtn(270, "Team Check: OFF", "Team Check: ON", false, function(on)
     teamCheck = on
 end)
 
-rowLabel(308, "───────────────────────────────────")
+rowLabel(306, "───────────────────────────────────")
 local hint = Instance.new("TextLabel")
 hint.Text = "Hold V = Lock-On Silent Aim"
 hint.Font = Enum.Font.Gotham
 hint.TextSize = 10
 hint.TextColor3 = Color3.fromRGB(120, 120, 120)
 hint.BackgroundTransparency = 1
-hint.Size = UDim2.new
+hint.Size = UDim2.new(1, -20, 0, 14)
+hint.Position = UDim2.new(0, 10, 0, 322)
+hint.Parent = mainPanel
+
+-- ── Player Events ─────────────────────────────────────────────
+Players.PlayerRemoving:Connect(function(plr)
+    removeESP(plr)
+    if lockedTarget and lockedTarget.Parent == plr.Character then
+        lockedTarget = nil
+    end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function()
+        task.wait(1)
+        removeESP(plr)
+    end)
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= lp then
+        plr.CharacterAdded:Connect(function()
+            task.wait(1)
+            removeESP(plr)
+        end)
+    end
+end
+
+-- ── Start FOV Update ─────────────────────────────────────────
+RunService.RenderStepped:Connect(updateFOV)
