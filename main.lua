@@ -1,4 +1,4 @@
--- XenoExecutor — FRONTLINES edition (FIXED)
+-- XenoExecutor — FRONTLINES edition (FIXED ESP FOR CUSTOM MODELS)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -27,47 +27,90 @@ sg.IgnoreGuiInset = true
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 sg.Parent = lpGui
 
--- ── Frontlines character helpers ──────────────────────────────
+-- ── Frontlines Custom Model Detection ────────────────────────
+-- Finds ALL possible player models in the game (Workspace, Live, Characters, etc.)
+local function findPlayerModels()
+    local models = {}
+    local function scan(obj)
+        if obj:IsA("Model") then
+            -- Check if this model belongs to a player
+            local plr = Players:GetPlayerFromCharacter(obj)
+            if plr then
+                models[plr] = obj
+            else
+                -- Some games store players in custom folders (e.g., Workspace.Live)
+                -- Check if the model has a Humanoid (likely a player)
+                local hum = obj:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    -- Try to match by name (e.g., "PlayerName" or "PlayerName_Model")
+                    for _, p in ipairs(Players:GetPlayers()) do
+                        if obj.Name:find(p.Name) or obj.Name:find(p.DisplayName) then
+                            models[p] = obj
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        -- Recursively scan children
+        for _, child in ipairs(obj:GetChildren()) do
+            scan(child)
+        end
+    end
+    -- Start scanning from Workspace
+    scan(workspace)
+    return models
+end
+
+-- Gets all BaseParts in a model (recursively)
 local function getAllParts(model)
     local parts = {}
     local function scan(obj)
-        for _, v in ipairs(obj:GetChildren()) do
-            if v:IsA("BasePart") then
-                parts[#parts + 1] = v
-            elseif v:IsA("Model") or v:IsA("Folder") then
-                scan(v)
-            end
+        if obj:IsA("BasePart") then
+            parts[#parts + 1] = obj
+        end
+        for _, child in ipairs(obj:GetChildren()) do
+            scan(child)
         end
     end
     scan(model)
     return parts
 end
 
+-- Finds Humanoid in a model (recursively)
 local function findHumanoid(model)
-    local h = model:FindFirstChildOfClass("Humanoid")
-    if h then return h end
-    for _, v in ipairs(model:GetDescendants()) do
-        if v:IsA("Humanoid") then return v end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if hum then return hum end
+    for _, child in ipairs(model:GetDescendants()) do
+        if child:IsA("Humanoid") then
+            return child
+        end
     end
     return nil
 end
 
+-- Finds Head in a model (recursively)
 local function findHead(model)
-    local h = model:FindFirstChild("Head", true)
-    if h and h:IsA("BasePart") then return h end
-    local r = model:FindFirstChild("HumanoidRootPart", true)
-    if r and r:IsA("BasePart") then return r end
+    local head = model:FindFirstChild("Head", true)
+    if head and head:IsA("BasePart") then return head end
+    -- Fallback: HumanoidRootPart or UpperTorso
+    local root = model:FindFirstChild("HumanoidRootPart", true)
+    if root and root:IsA("BasePart") then return root end
+    local torso = model:FindFirstChild("UpperTorso", true)
+    if torso and torso:IsA("BasePart") then return torso end
     return nil
 end
 
+-- Finds HumanoidRootPart in a model (recursively)
 local function findRootPart(model)
-    local r = model:FindFirstChild("HumanoidRootPart", true)
-    if r and r:IsA("BasePart") then return r end
+    local root = model:FindFirstChild("HumanoidRootPart", true)
+    if root and root:IsA("BasePart") then return root end
     return nil
 end
 
+-- Checks if a player is alive (works with custom models)
 local function isAlive(plr)
-    local char = plr.Character
+    local char = findPlayerModels()[plr] or plr.Character
     if not char then return false end
     local hum = findHumanoid(char)
     if not hum then return false end
@@ -77,6 +120,7 @@ local function isAlive(plr)
     return true
 end
 
+-- Checks if two players are on the same team
 local function sameTeam(a, b)
     if a.Team and b.Team and a.Team == b.Team then return true end
     if a.TeamColor and b.TeamColor and a.TeamColor == b.TeamColor then return true end
@@ -151,8 +195,9 @@ local function createESPFor(plr)
     espData[plr] = {box = box, hpBg = hpBg, hp = hp, lbl = lbl}
 end
 
-local function getBox(char)
-    local parts = getAllParts(char)
+-- Gets bounding box for ANY model (not just Character)
+local function getBox(model)
+    local parts = getAllParts(model)
     if #parts == 0 then return nil end
     local mnX, mnY = math.huge, math.huge
     local mxX, mxY = -math.huge, -math.huge
@@ -171,26 +216,27 @@ local function getBox(char)
     return mnX - 4, mnY - 4, mxX + 4, mxY + 4
 end
 
+-- Updated ESP loop to use custom model detection
 local function runESP()
-    for _, plr in ipairs(Players:GetPlayers()) do
+    local playerModels = findPlayerModels()
+    for plr, model in pairs(playerModels) do
         if plr ~= lp and isAlive(plr) then
             createESPFor(plr)
             local d = espData[plr]
             if d then
-                local char = plr.Character
-                local x1, y1, x2, y2 = getBox(char)
+                local x1, y1, x2, y2 = getBox(model)
                 if x1 then
                     local w, h = x2 - x1, y2 - y1
                     d.box.Position = UDim2.new(0, x1, 0, y1)
                     d.box.Size = UDim2.new(0, w, 0, h)
                     d.box.Visible = true
-                    if lockedTarget and lockedTarget.Parent == char then
+                    if lockedTarget and lockedTarget.Parent == model then
                         d.box.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
                         d.box.BackgroundTransparency = 0.55
                     else
                         d.box.BackgroundTransparency = 1
                     end
-                    local hum = findHumanoid(char)
+                    local hum = findHumanoid(model)
                     if hum then
                         local pct = hum.MaxHealth > 0 and (hum.Health / hum.MaxHealth) or 1
                         d.hpBg.Position = UDim2.new(0, x1 - 7, 0, y1)
@@ -230,16 +276,16 @@ local function updateFOV()
     fovFrame.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
 end
 
--- ── Aimbot ────────────────────────────────────────────────────
-local function getAimPart(char)
-    if not char then return nil end
+-- ── Aimbot (Updated for Custom Models) ────────────────────────
+local function getAimPart(model)
+    if not model then return nil end
     if aimLevel == "Head" then
-        local h = char:FindFirstChild("Head", true)
+        local h = model:FindFirstChild("Head", true)
         if h and h:IsA("BasePart") then return h end
     end
-    local t = char:FindFirstChild("UpperTorso", true)
+    local t = model:FindFirstChild("UpperTorso", true)
     if t and t:IsA("BasePart") then return t end
-    local r = char:FindFirstChild("HumanoidRootPart", true)
+    local r = model:FindFirstChild("HumanoidRootPart", true)
     if r and r:IsA("BasePart") then return r end
     return nil
 end
@@ -247,11 +293,12 @@ end
 local function getClosestPlayer()
     local best, bestD = nil, math.huge
     local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
-    for _, plr in ipairs(Players:GetPlayers()) do
+    local playerModels = findPlayerModels()
+    for plr, model in pairs(playerModels) do
         if plr ~= lp and isAlive(plr) then
             local skip = teamCheck and sameTeam(lp, plr)
             if not skip then
-                local part = getAimPart(plr.Character)
+                local part = getAimPart(model)
                 if part then
                     local sp, on = cam:WorldToViewportPoint(part.Position)
                     if on then
@@ -352,7 +399,7 @@ UIS.InputEnded:Connect(function(inp)
     end
 end)
 
--- ── Main Panel ────────────────────────────────────────────────
+-- ── Main Panel (Same as before) ───────────────────────────────
 local mainPanel = Instance.new("Frame", sg)
 mainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 mainPanel.Size = UDim2.new(0, 300, 0, 480)
@@ -407,7 +454,7 @@ closeBtn.MouseButton1Click:Connect(function()
     reopenBtn.Visible = true
 end)
 
--- ── UI helpers ────────────────────────────────────────────────
+-- ── UI Helpers (Same as before) ───────────────────────────────
 local function rowLabel(y, txt)
     local l = Instance.new("TextLabel", mainPanel)
     l.Text = txt
@@ -541,7 +588,7 @@ local function mkAimLevel(y)
     end)
 end
 
--- ── Layout ────────────────────────────────────────────────────
+-- ── Layout (Same as before) ───────────────────────────────────
 rowLabel(38, "── ESP ──────────────────────────────")
 mkToggle(56, "ESP: OFF", "ESP: ON", false, function(on)
     espEnabled = on
@@ -591,10 +638,10 @@ hint.BackgroundTransparency = 1
 hint.Size = UDim2.new(1, -20, 0, 14)
 hint.Position = UDim2.new(0, 10, 0, 354)
 
--- ── Player events ─────────────────────────────────────────────
+-- ── Player Events ─────────────────────────────────────────────
 Players.PlayerRemoving:Connect(function(plr)
     removeESP(plr)
-    if lockedTarget and lockedTarget.Parent == plr.Character then
+    if lockedTarget and lockedTarget.Parent == (findPlayerModels()[plr] or plr.Character) then
         lockedTarget = nil
     end
 end)
