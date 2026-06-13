@@ -205,58 +205,44 @@ local function isTargetValid(target)
 end
 
 local function runAimbot()
-    -- sticky: once locked, NEVER switch, NEVER let go
-    -- only drops if target dies or leaves
+    local function doAim(target)
+        if not target then return end
+        local yOff = (aimLevel == "Head") and 0.3 or -0.5
+        local offsetPos = target.Position + Vector3.new(0, yOff, 0)
+        local goal = CFrame.lookAt(cam.CFrame.Position, offsetPos)
+        -- Never touch CameraType — just nudge CFrame each RenderStepped
+        -- Sticky uses very high alpha so it resists mouse movement
+        local alpha = stickyAim and 0.98 or smoothness
+        cam.CFrame = cam.CFrame:Lerp(goal, alpha)
+    end
+
     if stickyAim then
+        -- locked target: never switch until dead/gone
         if lockedTarget and isTargetValid(lockedTarget) then
-            -- aim at target position with offset for aim level
-            local sp, on = cam:WorldToViewportPoint(lockedTarget.Position)
-            if on then
-                local yOff = (aimLevel == "Head") and -62 or -4
-                local targetScreen = Vector2.new(sp.X, sp.Y + yOff)
-                local mouse = lp:GetMouse()
-                local cur = Vector2.new(mouse.X, mouse.Y)
-                -- snap fully to target every frame — no escape
-                local delta = targetScreen - cur
-                -- use camera CFrame to aim (works without mousemoverel)
-                local offsetPos = lockedTarget.Position
-                        + Vector3.new(0, (aimLevel == "Head") and 0.3 or -0.5, 0)
-                local goal = CFrame.lookAt(cam.CFrame.Position, offsetPos)
-                cam.CFrame = goal
-            end
-            return
+            doAim(lockedTarget)
         else
-            -- target gone — find new one
             lockedTarget = getClosestPlayer()
+            if lockedTarget then doAim(lockedTarget) end
         end
         return
     end
 
-    -- non-sticky: normal smooth aim, can switch targets
+    -- normal: smooth aim, respects FOV, can switch
     if lockedTarget and isTargetValid(lockedTarget) then
         local sp, on = cam:WorldToViewportPoint(lockedTarget.Position)
         if on then
             local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-            local screenV = Vector2.new(sp.X, sp.Y)
-            if (screenV - center).Magnitude > fovRadius then
+            if (Vector2.new(sp.X,sp.Y) - center).Magnitude > fovRadius then
                 lockedTarget = nil
                 return
             end
-            local offsetPos = lockedTarget.Position
-                    + Vector3.new(0, (aimLevel == "Head") and 0.3 or -0.5, 0)
-            local goal = CFrame.lookAt(cam.CFrame.Position, offsetPos)
-            cam.CFrame = cam.CFrame:Lerp(goal, smoothness)
+            doAim(lockedTarget)
         end
         return
     end
 
     lockedTarget = getClosestPlayer()
-    if lockedTarget then
-        local offsetPos = lockedTarget.Position
-                + Vector3.new(0, (aimLevel == "Head") and 0.3 or -0.5, 0)
-        local goal = CFrame.lookAt(cam.CFrame.Position, offsetPos)
-        cam.CFrame = cam.CFrame:Lerp(goal, smoothness)
-    end
+    if lockedTarget then doAim(lockedTarget) end
 end
 
 -- ── Input ─────────────────────────────────────────────────────
@@ -267,7 +253,6 @@ UIS.InputBegan:Connect(function(inp, gp)
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled = true
         lockedTarget  = nil
-        cam.CameraType = Enum.CameraType.Scriptable
         if not aimbotConnection then
             aimbotConnection = RunService.RenderStepped:Connect(function()
                 if aimbotEnabled then updateFOV(); runAimbot() end
@@ -284,7 +269,6 @@ UIS.InputEnded:Connect(function(inp)
     if inp.KeyCode == Enum.KeyCode.V then
         aimbotEnabled  = false
         lockedTarget   = nil
-        cam.CameraType = Enum.CameraType.Custom
         if aimbotConnection then
             aimbotConnection:Disconnect()
             aimbotConnection = nil
@@ -488,7 +472,6 @@ mkToggle(250, "Sticky Aim: OFF", "Sticky Aim: ON", false, function(on)
     if not on then
         -- restore camera control when turning sticky off
         if not aimbotEnabled then
-            cam.CameraType = Enum.CameraType.Custom
         end
     end
 end)
